@@ -3,14 +3,17 @@ import type { UpscaleEngine, UpscaleOpts } from "./engine.ts";
 import { isImageFile } from "../cbz.ts";
 
 const DEFAULT_BATCH_SIZE = 50;
+const DEFAULT_CONCURRENCY = 1;
 
 export interface Waifu2xConfig {
   binaryPath: string;
   batchSize?: number;
+  concurrency?: number;
 }
 
 export function createWaifu2xEngine(config: Waifu2xConfig): UpscaleEngine {
   const batchSize = config.batchSize ?? DEFAULT_BATCH_SIZE;
+  const concurrency = config.concurrency ?? DEFAULT_CONCURRENCY;
 
   return {
     name: "waifu2x",
@@ -31,11 +34,19 @@ export function createWaifu2xEngine(config: Waifu2xConfig): UpscaleEngine {
       }
 
       const batches = splitIntoBatches(files, batchSize);
+      let processed = 0;
+      const total = files.length;
 
       for (let i = 0; i < batches.length; i++) {
         const batch = batches[i];
         console.log(`  Batch ${i + 1}/${batches.length} (${batch.length} images)...`);
-        await runWaifu2xBatch(config.binaryPath, inputDir, outputDir, batch, opts);
+        await runWaifu2xBatch(config.binaryPath, inputDir, outputDir, batch, opts, concurrency, (file) => {
+          processed++;
+          const pct = Math.round((processed / total) * 100);
+          const encoder = new TextEncoder();
+          Deno.stdout.writeSync(encoder.encode(`\r  [${pct}%] ${processed}/${total} — ${file}`));
+        });
+        console.log(); // newline after batch
       }
     },
   };
@@ -77,10 +88,10 @@ async function runWaifu2xBatch(
   outputDir: string,
   files: string[],
   opts: UpscaleOpts,
+  concurrency: number,
+  onFile?: (file: string) => void,
 ): Promise<void> {
-  // waifu2x-ncnn-vulkan supports directory input/output, but for batching
-  // we process individual files
-  for (const file of files) {
+  async function processFile(file: string): Promise<void> {
     const inputPath = join(inputDir, file);
     const outputPath = join(outputDir, file);
     const args = buildWaifu2xArgs(inputPath, outputPath, opts);
@@ -96,5 +107,26 @@ async function runWaifu2xBatch(
       const stderr = new TextDecoder().decode(result.stderr);
       throw new Error(`waifu2x failed on ${file}: ${stderr}`);
     }
+    onFile?.(file);
   }
+
+  if (concurrency <= 1) {
+    for (const file of files) {
+      await processFile(file);
+    }
+    return;
+  }
+
+  const executing = new Set<Promise<void>>();
+  for (const file of files) {
+    const p = processFile(file).then(
+      () => { executing.delete(p); },
+      (err) => { executing.delete(p); throw err; },
+    );
+    executing.add(p);
+    if (executing.size >= concurrency) {
+      await Promise.race(executing);
+    }
+  }
+  await Promise.all(executing);
 }

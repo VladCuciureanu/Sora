@@ -16,6 +16,7 @@ Options:
   -e, --engine <name>     Engine to use (default: waifu2x)
   -s, --scale <2|4>       Scale factor (default: 2)
   -n, --noise <-1..3>     Denoise level (default: -1, none)
+  -j, --concurrency <N>   Parallel processes per batch (default: 1)
   --config <path>         Config file path
   --dry-run               Show what would be done
   -h, --help              Show this help`;
@@ -26,6 +27,7 @@ export interface CliArgs {
   engine: string;
   scale: number;
   noise: number;
+  concurrency?: number;
   configPath?: string;
   dryRun: boolean;
 }
@@ -34,7 +36,7 @@ export function parseCliArgs(args: string[]): CliArgs {
   const parsed = parseArgs(args, {
     string: ["output", "engine", "config"],
     boolean: ["help", "dry-run"],
-    alias: { o: "output", e: "engine", s: "scale", n: "noise", h: "help" },
+    alias: { o: "output", e: "engine", s: "scale", n: "noise", j: "concurrency", h: "help" },
     default: { engine: "waifu2x", scale: 2, noise: -1 },
   });
 
@@ -67,12 +69,19 @@ export function parseCliArgs(args: string[]): CliArgs {
     basename(input, ".cbz") + "_upscaled.cbz",
   );
 
+  const concurrency = parsed.concurrency != null ? Number(parsed.concurrency) : undefined;
+  if (concurrency != null && (!Number.isInteger(concurrency) || concurrency < 1)) {
+    console.error("Error: --concurrency must be a positive integer");
+    Deno.exit(1);
+  }
+
   return {
     input,
     output: parsed.output ?? defaultOutput,
     engine: parsed.engine ?? "waifu2x",
     scale,
     noise,
+    concurrency,
     configPath: parsed.config,
     dryRun: parsed["dry-run"] ?? false,
   };
@@ -86,7 +95,10 @@ async function main(): Promise<void> {
 
   for (const [name, engineConfig] of Object.entries(config.engines)) {
     if (name === "waifu2x") {
-      registerEngine(name, () => createWaifu2xEngine(engineConfig));
+      registerEngine(name, () => createWaifu2xEngine({
+        ...engineConfig,
+        concurrency: args.concurrency ?? engineConfig.concurrency,
+      }));
     }
   }
 

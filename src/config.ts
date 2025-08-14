@@ -2,6 +2,7 @@ import { join } from "@std/path";
 
 export interface EngineConfig {
   binaryPath: string;
+  concurrency?: number;
 }
 
 export interface Config {
