@@ -2,7 +2,7 @@
   "tasks": {
     "dev": "deno run --watch -A src/main.ts",
     "start": "deno run -A src/main.ts",
-    "compile": "deno compile -A -o cbz-upscale src/main.ts",
+    "compile": "deno compile -A -o sora src/main.ts",
     "test": "deno test -A"
   },
   "imports": {

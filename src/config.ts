@@ -13,7 +13,7 @@ function getDefaultConfigPath(): string {
   return join(
     Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? ".",
     ".config",
-    "cbz-upscale",
+    "sora",
     "config.json",
   );
 }
@@ -29,8 +29,8 @@ export async function loadConfig(configPath?: string): Promise<Config> {
       throw new Error(
         `Config file not found at ${path}\n\n` +
           `Create it with:\n` +
-          `  mkdir -p ~/.config/cbz-upscale\n` +
-          `  cat > ~/.config/cbz-upscale/config.json << 'EOF'\n` +
+          `  mkdir -p ~/.config/sora\n` +
+          `  cat > ~/.config/sora/config.json << 'EOF'\n` +
           `  {\n` +
           `    "engines": {\n` +
           `      "waifu2x": { "binaryPath": "/path/to/waifu2x-ncnn-vulkan" }\n` +

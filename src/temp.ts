@@ -4,7 +4,7 @@ export interface TempContext {
   cleanup(): Promise<void>;
 }
 
-export async function createTempContext(prefix = "cbz-upscale"): Promise<TempContext> {
+export async function createTempContext(prefix = "sora"): Promise<TempContext> {
   const inputDir = await Deno.makeTempDir({ prefix: `${prefix}-in-` });
   const outputDir = await Deno.makeTempDir({ prefix: `${prefix}-out-` });
 

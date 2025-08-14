@@ -7,9 +7,9 @@ import { registerEngine, getEngine, listEngines } from "./engines/engine.ts";
 import { createWaifu2xEngine } from "./engines/waifu2x.ts";
 import { createUpscaleMetadata, tagFile } from "./metadata.ts";
 
-const HELP = `cbz-upscale — Upscale CBZ comic book archives
+const HELP = `Sora — Upscale CBZ comic book archives
 
-Usage: cbz-upscale <input.cbz> [options]
+Usage: sora <input.cbz> [options]
 
 Options:
   -o, --output <path>     Output file (default: <input>_upscaled.cbz)
