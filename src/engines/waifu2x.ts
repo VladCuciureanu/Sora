@@ -1,9 +1,9 @@
-import { readdir, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readdir, stat } from "node:fs/promises";
+import { dirname, join, relative } from "node:path";
 import process from "node:process";
 import type { UpscaleEngine, UpscaleOpts } from "./engine.ts";
 import { isImageFile } from "../cbz.ts";
-import { run } from "../exec.ts";
+import { run, type RunResult } from "../exec.ts";
 
 const DEFAULT_BATCH_SIZE = 50;
 const DEFAULT_CONCURRENCY = 1;
@@ -12,11 +12,14 @@ export interface Waifu2xConfig {
   binaryPath: string;
   batchSize?: number;
   concurrency?: number;
+  /** Process runner; overridable for tests. Defaults to `run` from exec.ts. */
+  runner?: (command: string, args: string[]) => Promise<RunResult>;
 }
 
 export function createWaifu2xEngine(config: Waifu2xConfig): UpscaleEngine {
   const batchSize = config.batchSize ?? DEFAULT_BATCH_SIZE;
   const concurrency = config.concurrency ?? DEFAULT_CONCURRENCY;
+  const runner = config.runner ?? run;
 
   return {
     name: "waifu2x",
@@ -43,7 +46,7 @@ export function createWaifu2xEngine(config: Waifu2xConfig): UpscaleEngine {
       for (let i = 0; i < batches.length; i++) {
         const batch = batches[i];
         console.log(`  Batch ${i + 1}/${batches.length} (${batch.length} images)...`);
-        await runWaifu2xBatch(config.binaryPath, inputDir, outputDir, batch, opts, concurrency, (file) => {
+        await runWaifu2xBatch(runner, config.binaryPath, inputDir, outputDir, batch, opts, concurrency, (file) => {
           processed++;
           const pct = Math.round((processed / total) * 100);
           process.stdout.write(`\r  [${pct}%] ${processed}/${total} — ${file}`);
@@ -54,11 +57,12 @@ export function createWaifu2xEngine(config: Waifu2xConfig): UpscaleEngine {
   };
 }
 
-async function collectImageFiles(dir: string): Promise<string[]> {
+/** Recursively collect image files under `dir`, as paths relative to `dir`. */
+export async function collectImageFiles(dir: string): Promise<string[]> {
   const files: string[] = [];
-  for (const entry of await readdir(dir, { withFileTypes: true })) {
+  for (const entry of await readdir(dir, { withFileTypes: true, recursive: true })) {
     if (entry.isFile() && isImageFile(entry.name)) {
-      files.push(entry.name);
+      files.push(relative(dir, join(entry.parentPath, entry.name)));
     }
   }
   return files.sort();
@@ -85,6 +89,7 @@ export function buildWaifu2xArgs(
 }
 
 async function runWaifu2xBatch(
+  runner: (command: string, args: string[]) => Promise<RunResult>,
   binaryPath: string,
   inputDir: string,
   outputDir: string,
@@ -98,7 +103,8 @@ async function runWaifu2xBatch(
     const outputPath = join(outputDir, file);
     const args = buildWaifu2xArgs(inputPath, outputPath, opts);
 
-    const result = await run(binaryPath, args);
+    await mkdir(dirname(outputPath), { recursive: true });
+    const result = await runner(binaryPath, args);
     if (!result.success) {
       throw new Error(`waifu2x failed on ${file}: ${result.stderr}`);
     }
