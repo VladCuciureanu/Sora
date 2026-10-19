@@ -15,6 +15,8 @@ import {
 import type { RunResult } from "../../src/exec.ts";
 
 const makeTempDir = () => mkdtemp(join(tmpdir(), "sora-test-"));
+const inImg = join("in", "img.jpg");
+const outImg = join("out", "img.jpg");
 
 /** Fake waifu2x runner: copies the `-i` file to the `-o` path. */
 async function copyRunner(_command: string, args: string[]): Promise<RunResult> {
@@ -48,18 +50,18 @@ test("splitIntoBatches - empty input", () => {
 });
 
 test("buildWaifu2xArgs - basic scale only", () => {
-  const args = buildWaifu2xArgs("/in/img.jpg", "/out/img.jpg", { scale: 2, noise: -1 });
-  assert.deepEqual(args, ["-i", "/in/img.jpg", "-o", "/out/img.jpg", "-s", "2"]);
+  const args = buildWaifu2xArgs(inImg, outImg, { scale: 2, noise: -1 });
+  assert.deepEqual(args, ["-i", inImg, "-o", outImg, "-s", "2"]);
 });
 
 test("buildWaifu2xArgs - with noise reduction", () => {
-  const args = buildWaifu2xArgs("/in/img.jpg", "/out/img.jpg", { scale: 4, noise: 2 });
-  assert.deepEqual(args, ["-i", "/in/img.jpg", "-o", "/out/img.jpg", "-s", "4", "-n", "2"]);
+  const args = buildWaifu2xArgs(inImg, outImg, { scale: 4, noise: 2 });
+  assert.deepEqual(args, ["-i", inImg, "-o", outImg, "-s", "4", "-n", "2"]);
 });
 
 test("buildWaifu2xArgs - noise level 0 is included", () => {
-  const args = buildWaifu2xArgs("/in/img.jpg", "/out/img.jpg", { scale: 2, noise: 0 });
-  assert.deepEqual(args, ["-i", "/in/img.jpg", "-o", "/out/img.jpg", "-s", "2", "-n", "0"]);
+  const args = buildWaifu2xArgs(inImg, outImg, { scale: 2, noise: 0 });
+  assert.deepEqual(args, ["-i", inImg, "-o", outImg, "-s", "2", "-n", "0"]);
 });
 
 test("collectImageFiles - includes images in subfolders as relative paths", async () => {

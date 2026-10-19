@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { join } from "node:path";
 import { parseCliArgs } from "../src/main.ts";
 
 test("parseCliArgs - parses minimal args", () => {
@@ -14,20 +15,20 @@ test("parseCliArgs - parses minimal args", () => {
 
 test("parseCliArgs - parses all options", () => {
   const args = parseCliArgs([
-    "comics/vol1.cbz",
-    "-o", "out/vol1_4x.cbz",
+    join("comics", "vol1.cbz"),
+    "-o", join("out", "vol1_4x.cbz"),
     "-e", "waifu2x",
     "-s", "4",
     "-n", "2",
-    "--config", "/tmp/config.json",
+    "--config", join("tmp", "config.json"),
     "--dry-run",
   ]);
-  assert.equal(args.input, "comics/vol1.cbz");
-  assert.equal(args.output, "out/vol1_4x.cbz");
+  assert.equal(args.input, join("comics", "vol1.cbz"));
+  assert.equal(args.output, join("out", "vol1_4x.cbz"));
   assert.equal(args.engine, "waifu2x");
   assert.equal(args.scale, 4);
   assert.equal(args.noise, 2);
-  assert.equal(args.configPath, "/tmp/config.json");
+  assert.equal(args.configPath, join("tmp", "config.json"));
   assert.equal(args.dryRun, true);
 });
 
@@ -42,6 +43,6 @@ test("parseCliArgs - uses long option names", () => {
 });
 
 test("parseCliArgs - default output includes directory", () => {
-  const args = parseCliArgs(["/path/to/comic.cbz"]);
-  assert.equal(args.output, "/path/to/comic_upscaled.cbz");
+  const args = parseCliArgs([join("path", "to", "comic.cbz")]);
+  assert.equal(args.output, join("path", "to", "comic_upscaled.cbz"));
 });

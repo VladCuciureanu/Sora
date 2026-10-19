@@ -39,7 +39,7 @@ test("categorizeFiles - handles nested directories", async () => {
   await writeFile(join(dir, "meta.xml"), "<xml/>");
 
   const result = await categorizeFiles(dir);
-  assert.deepEqual(result.imageFiles, ["sub/page01.jpg"]);
+  assert.deepEqual(result.imageFiles, [join("sub", "page01.jpg")]);
   assert.deepEqual(result.otherFiles, ["meta.xml"]);
 
   await rm(dir, { recursive: true });
