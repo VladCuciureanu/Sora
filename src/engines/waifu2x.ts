@@ -111,23 +111,41 @@ async function runWaifu2xBatch(
     onFile?.(file);
   }
 
-  if (concurrency <= 1) {
-    for (const file of files) {
-      await processFile(file);
+  await runPool(files, concurrency, processFile);
+}
+
+/**
+ * Run `task` over `items` with at most `concurrency` tasks in flight.
+ * On the first failure no new tasks are started, but every in-flight task
+ * is awaited before the pool rejects with that first error, so no task is
+ * left running or rejecting unobserved.
+ */
+export async function runPool<T>(
+  items: T[],
+  concurrency: number,
+  task: (item: T) => Promise<void>,
+): Promise<void> {
+  let next = 0;
+  let failed = false;
+  let firstError: unknown;
+
+  async function worker(): Promise<void> {
+    while (!failed && next < items.length) {
+      const item = items[next++];
+      try {
+        await task(item);
+      } catch (err) {
+        if (!failed) {
+          failed = true;
+          firstError = err;
+        }
+      }
     }
-    return;
   }
 
-  const executing = new Set<Promise<void>>();
-  for (const file of files) {
-    const p = processFile(file).then(
-      () => { executing.delete(p); },
-      (err) => { executing.delete(p); throw err; },
-    );
-    executing.add(p);
-    if (executing.size >= concurrency) {
-      await Promise.race(executing);
-    }
+  const workerCount = Math.max(1, Math.min(concurrency, items.length));
+  await Promise.all(Array.from({ length: workerCount }, worker));
+  if (failed) {
+    throw firstError;
   }
-  await Promise.all(executing);
 }
