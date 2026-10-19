@@ -1,6 +1,9 @@
-import { join } from "@std/path";
+import { readdir, stat } from "node:fs/promises";
+import { join } from "node:path";
+import process from "node:process";
 import type { UpscaleEngine, UpscaleOpts } from "./engine.ts";
 import { isImageFile } from "../cbz.ts";
+import { run } from "../exec.ts";
 
 const DEFAULT_BATCH_SIZE = 50;
 const DEFAULT_CONCURRENCY = 1;
@@ -20,8 +23,8 @@ export function createWaifu2xEngine(config: Waifu2xConfig): UpscaleEngine {
 
     async checkAvailable(): Promise<boolean> {
       try {
-        const stat = await Deno.stat(config.binaryPath);
-        return stat.isFile;
+        const info = await stat(config.binaryPath);
+        return info.isFile();
       } catch {
         return false;
       }
@@ -43,8 +46,7 @@ export function createWaifu2xEngine(config: Waifu2xConfig): UpscaleEngine {
         await runWaifu2xBatch(config.binaryPath, inputDir, outputDir, batch, opts, concurrency, (file) => {
           processed++;
           const pct = Math.round((processed / total) * 100);
-          const encoder = new TextEncoder();
-          Deno.stdout.writeSync(encoder.encode(`\r  [${pct}%] ${processed}/${total} — ${file}`));
+          process.stdout.write(`\r  [${pct}%] ${processed}/${total} — ${file}`);
         });
         console.log(); // newline after batch
       }
@@ -54,8 +56,8 @@ export function createWaifu2xEngine(config: Waifu2xConfig): UpscaleEngine {
 
 async function collectImageFiles(dir: string): Promise<string[]> {
   const files: string[] = [];
-  for await (const entry of Deno.readDir(dir)) {
-    if (entry.isFile && isImageFile(entry.name)) {
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    if (entry.isFile() && isImageFile(entry.name)) {
       files.push(entry.name);
     }
   }
@@ -96,16 +98,9 @@ async function runWaifu2xBatch(
     const outputPath = join(outputDir, file);
     const args = buildWaifu2xArgs(inputPath, outputPath, opts);
 
-    const cmd = new Deno.Command(binaryPath, {
-      args,
-      stdout: "piped",
-      stderr: "piped",
-    });
-
-    const result = await cmd.output();
+    const result = await run(binaryPath, args);
     if (!result.success) {
-      const stderr = new TextDecoder().decode(result.stderr);
-      throw new Error(`waifu2x failed on ${file}: ${stderr}`);
+      throw new Error(`waifu2x failed on ${file}: ${result.stderr}`);
     }
     onFile?.(file);
   }

@@ -12,14 +12,25 @@ A CLI that shoves your CBZ archives through AI upscaling engines and spits out f
 
 ## Install
 
-Requires [Deno](https://deno.com).
+Requires [Node.js](https://nodejs.org) 24 or newer, plus `zip` and `unzip` on your `PATH`.
 
 ```sh
-# Run directly
-deno task start
+npm install
 
-# Or compile to a binary
-deno task compile
+# Run directly from source
+npm start -- <input.cbz> [options]
+
+# Or install the `sora` command globally (builds to dist/ first)
+npm run build
+npm link
+```
+
+## Development
+
+```sh
+npm run dev        # run with --watch
+npm test           # run the test suite
+npm run typecheck  # type-check with tsc
 ```
 
 ## Setup

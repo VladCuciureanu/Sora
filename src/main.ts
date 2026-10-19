@@ -1,5 +1,10 @@
-import { parseArgs } from "@std/cli/parse-args";
-import { basename, dirname, join } from "@std/path";
+#!/usr/bin/env node
+import { copyFile, mkdir, stat } from "node:fs/promises";
+import { realpathSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
+import process from "node:process";
+import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
 import { loadConfig } from "./config.ts";
 import { extractCbz, repackCbz } from "./cbz.ts";
 import { withTempContext } from "./temp.ts";
@@ -33,35 +38,59 @@ export interface CliArgs {
 }
 
 export function parseCliArgs(args: string[]): CliArgs {
-  const parsed = parseArgs(args, {
-    string: ["output", "engine", "config"],
-    boolean: ["help", "dry-run"],
-    alias: { o: "output", e: "engine", s: "scale", n: "noise", j: "concurrency", h: "help" },
-    default: { engine: "waifu2x", scale: 2, noise: -1 },
+  // strict: false: unknown flags are ignored and
+  // option values may start with a dash (e.g. `-n -1`).
+  const { values, positionals } = parseArgs({
+    args,
+    strict: false,
+    allowPositionals: true,
+    options: {
+      output: { type: "string", short: "o" },
+      engine: { type: "string", short: "e", default: "waifu2x" },
+      scale: { type: "string", short: "s", default: "2" },
+      noise: { type: "string", short: "n", default: "-1" },
+      concurrency: { type: "string", short: "j" },
+      config: { type: "string" },
+      help: { type: "boolean", short: "h" },
+      "dry-run": { type: "boolean" },
+    },
   });
+  // With strict: false, a string option given without a value comes back as
+  // `true`; treat it as an empty string.
+  const str = (v: string | boolean | undefined) => (typeof v === "string" ? v : v ? "" : undefined);
+  const parsed = {
+    output: str(values.output),
+    engine: str(values.engine),
+    config: str(values.config),
+    scale: values.scale,
+    noise: values.noise,
+    concurrency: values.concurrency,
+    help: values.help,
+    "dry-run": values["dry-run"] === true,
+  };
 
   if (parsed.help) {
     console.log(HELP);
-    Deno.exit(0);
+    process.exit(0);
   }
 
-  const input = parsed._[0];
-  if (!input || typeof input !== "string") {
+  const input = positionals[0];
+  if (!input) {
     console.error("Error: input CBZ file is required\n");
     console.error(HELP);
-    Deno.exit(1);
+    process.exit(1);
   }
 
   const scale = Number(parsed.scale);
   if (![2, 4].includes(scale)) {
     console.error("Error: --scale must be 2 or 4");
-    Deno.exit(1);
+    process.exit(1);
   }
 
   const noise = Number(parsed.noise);
   if (![-1, 0, 1, 2, 3].includes(noise)) {
     console.error("Error: --noise must be -1, 0, 1, 2, or 3");
-    Deno.exit(1);
+    process.exit(1);
   }
 
   const defaultOutput = join(
@@ -72,7 +101,7 @@ export function parseCliArgs(args: string[]): CliArgs {
   const concurrency = parsed.concurrency != null ? Number(parsed.concurrency) : undefined;
   if (concurrency != null && (!Number.isInteger(concurrency) || concurrency < 1)) {
     console.error("Error: --concurrency must be a positive integer");
-    Deno.exit(1);
+    process.exit(1);
   }
 
   return {
@@ -88,7 +117,7 @@ export function parseCliArgs(args: string[]): CliArgs {
 }
 
 async function main(): Promise<void> {
-  const args = parseCliArgs(Deno.args);
+  const args = parseCliArgs(process.argv.slice(2));
 
   // Load config and register engines
   const config = await loadConfig(args.configPath);
@@ -112,7 +141,7 @@ async function main(): Promise<void> {
       `Error: Engine "${args.engine}" binary not found or not executable.\n` +
         `Check the binaryPath in your config file.`,
     );
-    Deno.exit(1);
+    process.exit(1);
   }
 
   if (args.dryRun) {
@@ -128,11 +157,11 @@ async function main(): Promise<void> {
 
   // Check output doesn't exist (repackCbz also checks, but fail early)
   try {
-    await Deno.stat(args.output);
+    await stat(args.output);
     console.error(`Error: Output file already exists: ${args.output}`);
-    Deno.exit(1);
+    process.exit(1);
   } catch (e) {
-    if (!(e instanceof Deno.errors.NotFound)) throw e;
+    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
   }
 
   console.log(`Upscaling ${args.input}...`);
@@ -156,8 +185,8 @@ async function main(): Promise<void> {
     for (const file of contents.otherFiles) {
       const src = join(ctx.inputDir, file);
       const dst = join(ctx.outputDir, file);
-      await Deno.mkdir(dirname(dst), { recursive: true });
-      await Deno.copyFile(src, dst);
+      await mkdir(dirname(dst), { recursive: true });
+      await copyFile(src, dst);
       await tagFile(dst, meta);
     }
 
@@ -169,6 +198,16 @@ async function main(): Promise<void> {
   console.log(`Done! Output: ${args.output}`);
 }
 
-if (import.meta.main) {
+// Run main() only when executed directly (import.meta.main is not in all Node 24 releases).
+function isMainModule(): boolean {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+  } catch {
+    return false;
+  }
+}
+
+if (isMainModule()) {
   main();
 }

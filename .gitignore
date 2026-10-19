@@ -1,3 +1,5 @@
 notes/
 .claude/
 .herodotus.toml
+node_modules/
+dist/

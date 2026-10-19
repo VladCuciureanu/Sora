@@ -1,7 +1,12 @@
-import { assertEquals, assertStringIncludes, assert } from "@std/assert";
-import { join } from "@std/path";
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createUpscaleMetadata, tagFile } from "../src/metadata.ts";
 import type { UpscaleMetadata } from "../src/metadata.ts";
+
+const makeTempDir = () => mkdtemp(join(tmpdir(), "sora-test-"));
 
 function makeMeta(): UpscaleMetadata {
   return {
@@ -12,61 +17,61 @@ function makeMeta(): UpscaleMetadata {
   };
 }
 
-Deno.test("createUpscaleMetadata - creates metadata with timestamp", () => {
+test("createUpscaleMetadata - creates metadata with timestamp", () => {
   const meta = createUpscaleMetadata("waifu2x", 2, -1);
-  assertEquals(meta.engine, "waifu2x");
-  assertEquals(meta.scale, 2);
-  assertEquals(meta.noise, -1);
-  assert(meta.timestamp.length > 0);
+  assert.equal(meta.engine, "waifu2x");
+  assert.equal(meta.scale, 2);
+  assert.equal(meta.noise, -1);
+  assert.ok(meta.timestamp.length > 0);
 });
 
-Deno.test("tagFile - injects metadata into XML file", async () => {
-  const dir = await Deno.makeTempDir();
+test("tagFile - injects metadata into XML file", async () => {
+  const dir = await makeTempDir();
   const xmlPath = join(dir, "ComicInfo.xml");
-  await Deno.writeTextFile(xmlPath, `<?xml version="1.0"?>\n<ComicInfo>\n  <Title>Test</Title>\n</ComicInfo>`);
+  await writeFile(xmlPath, `<?xml version="1.0"?>\n<ComicInfo>\n  <Title>Test</Title>\n</ComicInfo>`);
 
   await tagFile(xmlPath, makeMeta());
 
-  const content = await Deno.readTextFile(xmlPath);
-  assertStringIncludes(content, "<UpscaleInfo>");
-  assertStringIncludes(content, "<Engine>waifu2x</Engine>");
-  assertStringIncludes(content, "<Scale>2</Scale>");
-  assertStringIncludes(content, "<Noise>1</Noise>");
+  const content = await readFile(xmlPath, "utf8");
+  assert.ok(content.includes("<UpscaleInfo>"));
+  assert.ok(content.includes("<Engine>waifu2x</Engine>"));
+  assert.ok(content.includes("<Scale>2</Scale>"));
+  assert.ok(content.includes("<Noise>1</Noise>"));
   // Ensure it's before the closing tag
   const upscaleIdx = content.indexOf("<UpscaleInfo>");
   const closingIdx = content.indexOf("</ComicInfo>");
-  assert(upscaleIdx < closingIdx);
+  assert.ok(upscaleIdx < closingIdx);
 
-  await Deno.remove(dir, { recursive: true });
+  await rm(dir, { recursive: true });
 });
 
-Deno.test("tagFile - writes sidecar JSON for non-XML files", async () => {
-  const dir = await Deno.makeTempDir();
+test("tagFile - writes sidecar JSON for non-XML files", async () => {
+  const dir = await makeTempDir();
   const filePath = join(dir, "readme.txt");
-  await Deno.writeTextFile(filePath, "hello");
+  await writeFile(filePath, "hello");
 
   await tagFile(filePath, makeMeta());
 
   const sidecar = join(dir, "readme.txt.upscale-meta.json");
-  const content = JSON.parse(await Deno.readTextFile(sidecar));
-  assertEquals(content.engine, "waifu2x");
-  assertEquals(content.scale, 2);
-  assertEquals(content.noise, 1);
+  const content = JSON.parse(await readFile(sidecar, "utf8"));
+  assert.equal(content.engine, "waifu2x");
+  assert.equal(content.scale, 2);
+  assert.equal(content.noise, 1);
 
-  await Deno.remove(dir, { recursive: true });
+  await rm(dir, { recursive: true });
 });
 
-Deno.test("tagFile - escapes XML special characters in engine name", async () => {
-  const dir = await Deno.makeTempDir();
+test("tagFile - escapes XML special characters in engine name", async () => {
+  const dir = await makeTempDir();
   const xmlPath = join(dir, "meta.xml");
-  await Deno.writeTextFile(xmlPath, "<Root></Root>");
+  await writeFile(xmlPath, "<Root></Root>");
 
   const meta = makeMeta();
   meta.engine = "test<>&\"engine";
   await tagFile(xmlPath, meta);
 
-  const content = await Deno.readTextFile(xmlPath);
-  assertStringIncludes(content, "&lt;&gt;&amp;&quot;");
+  const content = await readFile(xmlPath, "utf8");
+  assert.ok(content.includes("&lt;&gt;&amp;&quot;"));
 
-  await Deno.remove(dir, { recursive: true });
+  await rm(dir, { recursive: true });
 });

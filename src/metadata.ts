@@ -1,4 +1,5 @@
-import { join, dirname, basename, extname } from "@std/path";
+import { readFile, writeFile } from "node:fs/promises";
+import { join, dirname, basename, extname } from "node:path";
 
 export interface UpscaleMetadata {
   engine: string;
@@ -33,7 +34,7 @@ export async function tagFile(filePath: string, meta: UpscaleMetadata): Promise<
 }
 
 async function tagXmlFile(filePath: string, meta: UpscaleMetadata): Promise<void> {
-  let content = await Deno.readTextFile(filePath);
+  let content = await readFile(filePath, "utf8");
 
   const metaXml = [
     `  <UpscaleInfo>`,
@@ -54,7 +55,7 @@ async function tagXmlFile(filePath: string, meta: UpscaleMetadata): Promise<void
     content += "\n" + metaXml;
   }
 
-  await Deno.writeTextFile(filePath, content);
+  await writeFile(filePath, content);
 }
 
 function escapeXml(str: string): string {
@@ -73,5 +74,5 @@ function sidecarPath(filePath: string): string {
 
 async function writeSidecarFile(filePath: string, meta: UpscaleMetadata): Promise<void> {
   const path = sidecarPath(filePath);
-  await Deno.writeTextFile(path, JSON.stringify(meta, null, 2) + "\n");
+  await writeFile(path, JSON.stringify(meta, null, 2) + "\n");
 }

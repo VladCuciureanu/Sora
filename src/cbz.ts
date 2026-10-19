@@ -1,4 +1,6 @@
-import { join, extname, relative } from "@std/path";
+import { readdir, stat } from "node:fs/promises";
+import { join, extname, relative } from "node:path";
+import { run } from "./exec.ts";
 
 const IMAGE_EXTENSIONS = new Set([
   ".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff", ".tif", ".gif",
@@ -14,16 +16,10 @@ export function isImageFile(path: string): boolean {
 }
 
 export async function extractCbz(cbzPath: string, outputDir: string): Promise<CbzContents> {
-  // Use Deno's built-in zip handling via `unzip` command
-  const cmd = new Deno.Command("unzip", {
-    args: ["-o", cbzPath, "-d", outputDir],
-    stdout: "null",
-    stderr: "piped",
-  });
-  const result = await cmd.output();
+  // Extract via the system `unzip` command
+  const result = await run("unzip", ["-o", cbzPath, "-d", outputDir]);
   if (!result.success) {
-    const stderr = new TextDecoder().decode(result.stderr);
-    throw new Error(`Failed to extract CBZ: ${stderr}`);
+    throw new Error(`Failed to extract CBZ: ${result.stderr}`);
   }
 
   return categorizeFiles(outputDir);
@@ -48,11 +44,11 @@ export async function categorizeFiles(dir: string): Promise<CbzContents> {
 }
 
 async function* walkFiles(dir: string): AsyncGenerator<string> {
-  for await (const entry of Deno.readDir(dir)) {
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
     const path = join(dir, entry.name);
-    if (entry.isDirectory) {
+    if (entry.isDirectory()) {
       yield* walkFiles(path);
-    } else if (entry.isFile) {
+    } else if (entry.isFile()) {
       yield path;
     }
   }
@@ -60,23 +56,16 @@ async function* walkFiles(dir: string): AsyncGenerator<string> {
 
 export async function repackCbz(sourceDir: string, outputPath: string): Promise<void> {
   try {
-    await Deno.stat(outputPath);
+    await stat(outputPath);
     throw new Error(`Output file already exists: ${outputPath}`);
   } catch (e) {
-    if (!(e instanceof Deno.errors.NotFound)) {
+    if ((e as NodeJS.ErrnoException).code !== "ENOENT") {
       throw e;
     }
   }
 
-  const cmd = new Deno.Command("zip", {
-    args: ["-r", outputPath, "."],
-    cwd: sourceDir,
-    stdout: "null",
-    stderr: "piped",
-  });
-  const result = await cmd.output();
+  const result = await run("zip", ["-r", outputPath, "."], { cwd: sourceDir });
   if (!result.success) {
-    const stderr = new TextDecoder().decode(result.stderr);
-    throw new Error(`Failed to create CBZ: ${stderr}`);
+    throw new Error(`Failed to create CBZ: ${result.stderr}`);
   }
 }

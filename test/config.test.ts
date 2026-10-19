@@ -1,10 +1,16 @@
-import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { loadConfig } from "../src/config.ts";
 
-Deno.test("loadConfig - loads valid config", async () => {
-  const dir = await Deno.makeTempDir();
+const makeTempDir = () => mkdtemp(join(tmpdir(), "sora-test-"));
+
+test("loadConfig - loads valid config", async () => {
+  const dir = await makeTempDir();
   const path = `${dir}/config.json`;
-  await Deno.writeTextFile(
+  await writeFile(
     path,
     JSON.stringify({
       engines: {
@@ -14,61 +20,61 @@ Deno.test("loadConfig - loads valid config", async () => {
   );
 
   const config = await loadConfig(path);
-  assertEquals(config.engines.waifu2x.binaryPath, "/usr/local/bin/waifu2x-ncnn-vulkan");
+  assert.equal(config.engines.waifu2x.binaryPath, "/usr/local/bin/waifu2x-ncnn-vulkan");
 
-  await Deno.remove(dir, { recursive: true });
+  await rm(dir, { recursive: true });
 });
 
-Deno.test("loadConfig - throws on missing file with setup instructions", async () => {
-  const err = await assertRejects(
+test("loadConfig - throws on missing file with setup instructions", async () => {
+  await assert.rejects(
     () => loadConfig("/tmp/nonexistent/config.json"),
-    Error,
+    (err: Error) => {
+      assert.ok(err instanceof Error);
+      assert.match(err.message, /Config file not found/);
+      assert.match(err.message, /mkdir -p/);
+      return true;
+    },
   );
-  assertStringIncludes(err.message, "Config file not found");
-  assertStringIncludes(err.message, "mkdir -p");
 });
 
-Deno.test("loadConfig - throws on invalid JSON", async () => {
-  const dir = await Deno.makeTempDir();
+test("loadConfig - throws on invalid JSON", async () => {
+  const dir = await makeTempDir();
   const path = `${dir}/config.json`;
-  await Deno.writeTextFile(path, "not json{");
+  await writeFile(path, "not json{");
 
-  await assertRejects(
+  await assert.rejects(
     () => loadConfig(path),
-    Error,
-    "not valid JSON",
+    { name: "Error", message: /not valid JSON/ },
   );
 
-  await Deno.remove(dir, { recursive: true });
+  await rm(dir, { recursive: true });
 });
 
-Deno.test("loadConfig - throws on missing engines key", async () => {
-  const dir = await Deno.makeTempDir();
+test("loadConfig - throws on missing engines key", async () => {
+  const dir = await makeTempDir();
   const path = `${dir}/config.json`;
-  await Deno.writeTextFile(path, JSON.stringify({ foo: "bar" }));
+  await writeFile(path, JSON.stringify({ foo: "bar" }));
 
-  await assertRejects(
+  await assert.rejects(
     () => loadConfig(path),
-    Error,
-    '"engines" object',
+    { name: "Error", message: /"engines" object/ },
   );
 
-  await Deno.remove(dir, { recursive: true });
+  await rm(dir, { recursive: true });
 });
 
-Deno.test("loadConfig - throws on engine without binaryPath", async () => {
-  const dir = await Deno.makeTempDir();
+test("loadConfig - throws on engine without binaryPath", async () => {
+  const dir = await makeTempDir();
   const path = `${dir}/config.json`;
-  await Deno.writeTextFile(
+  await writeFile(
     path,
     JSON.stringify({ engines: { waifu2x: {} } }),
   );
 
-  await assertRejects(
+  await assert.rejects(
     () => loadConfig(path),
-    Error,
-    "binaryPath",
+    { name: "Error", message: /binaryPath/ },
   );
 
-  await Deno.remove(dir, { recursive: true });
+  await rm(dir, { recursive: true });
 });

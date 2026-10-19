@@ -1,3 +1,7 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 export interface TempContext {
   inputDir: string;
   outputDir: string;
@@ -5,12 +9,12 @@ export interface TempContext {
 }
 
 export async function createTempContext(prefix = "sora"): Promise<TempContext> {
-  const inputDir = await Deno.makeTempDir({ prefix: `${prefix}-in-` });
-  const outputDir = await Deno.makeTempDir({ prefix: `${prefix}-out-` });
+  const inputDir = await mkdtemp(join(tmpdir(), `${prefix}-in-`));
+  const outputDir = await mkdtemp(join(tmpdir(), `${prefix}-out-`));
 
   const cleanup = async () => {
-    await Deno.remove(inputDir, { recursive: true }).catch(() => {});
-    await Deno.remove(outputDir, { recursive: true }).catch(() => {});
+    await rm(inputDir, { recursive: true }).catch(() => {});
+    await rm(outputDir, { recursive: true }).catch(() => {});
   };
 
   return { inputDir, outputDir, cleanup };

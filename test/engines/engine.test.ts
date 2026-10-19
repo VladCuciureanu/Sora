@@ -1,4 +1,5 @@
-import { assertEquals, assertThrows } from "@std/assert";
+import { test } from "node:test";
+import assert from "node:assert/strict";
 import { registerEngine, getEngine, listEngines } from "../../src/engines/engine.ts";
 import type { UpscaleEngine } from "../../src/engines/engine.ts";
 
@@ -10,24 +11,23 @@ function makeDummyEngine(name: string): UpscaleEngine {
   };
 }
 
-Deno.test("registerEngine and getEngine - round trip", () => {
+test("registerEngine and getEngine - round trip", () => {
   registerEngine("test-engine", () => makeDummyEngine("test-engine"));
   const engine = getEngine("test-engine");
-  assertEquals(engine.name, "test-engine");
+  assert.equal(engine.name, "test-engine");
 });
 
-Deno.test("getEngine - throws on unknown engine", () => {
-  assertThrows(
+test("getEngine - throws on unknown engine", () => {
+  assert.throws(
     () => getEngine("nonexistent"),
-    Error,
-    "Unknown engine",
+    { name: "Error", message: /Unknown engine/ },
   );
 });
 
-Deno.test("listEngines - returns registered names", () => {
+test("listEngines - returns registered names", () => {
   registerEngine("engine-a", () => makeDummyEngine("engine-a"));
   registerEngine("engine-b", () => makeDummyEngine("engine-b"));
   const names = listEngines();
-  assertEquals(names.includes("engine-a"), true);
-  assertEquals(names.includes("engine-b"), true);
+  assert.equal(names.includes("engine-a"), true);
+  assert.equal(names.includes("engine-b"), true);
 });
