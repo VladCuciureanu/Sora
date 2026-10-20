@@ -47,6 +47,8 @@ test("collectImageFiles - includes images in subfolders as relative paths", asyn
   await writeFile(join(dir, "chapter1", "page01.png"), "p1");
   await writeFile(join(dir, "chapter1", "extras", "bonus.webp"), "bonus");
   await writeFile(join(dir, "chapter1", "ComicInfo.xml"), "<xml/>");
+  await writeFile(join(dir, "chapter1", "anim.gif"), "gif");
+  await writeFile(join(dir, "scan.bmp"), "bmp");
 
   const files = await collectImageFiles(dir);
   assert.deepEqual(files, [

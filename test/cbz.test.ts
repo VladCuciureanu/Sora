@@ -13,10 +13,17 @@ test("isImageFile - recognizes image extensions", () => {
   assert.equal(isImageFile("page01.jpg"), true);
   assert.equal(isImageFile("page02.PNG"), true);
   assert.equal(isImageFile("photo.webp"), true);
-  assert.equal(isImageFile("art.bmp"), true);
+  assert.equal(isImageFile("scan.JPEG"), true);
   assert.equal(isImageFile("ComicInfo.xml"), false);
   assert.equal(isImageFile("readme.txt"), false);
   assert.equal(isImageFile("data.json"), false);
+});
+
+test("isImageFile - rejects image formats waifu2x cannot read", () => {
+  assert.equal(isImageFile("art.bmp"), false);
+  assert.equal(isImageFile("anim.gif"), false);
+  assert.equal(isImageFile("scan.tif"), false);
+  assert.equal(isImageFile("scan.TIFF"), false);
 });
 
 test("categorizeFiles - separates images from other files", async () => {

@@ -2,9 +2,9 @@ import { readdir } from "node:fs/promises";
 import { join, extname, relative } from "node:path";
 import { run } from "./exec.ts";
 
-const IMAGE_EXTENSIONS = new Set([
-  ".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff", ".tif", ".gif",
-]);
+// Formats waifu2x-ncnn-vulkan can read. Other images (gif, bmp, tiff, ...)
+// are treated as ordinary files and copied through unchanged.
+const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
 
 export interface CbzContents {
   imageFiles: string[];

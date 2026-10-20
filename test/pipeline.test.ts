@@ -75,6 +75,27 @@ test("upscaleCbz - upscales images, copies other files, and repacks", async () =
   }
 });
 
+test("upscaleCbz - copies images the engine cannot read through unchanged", async () => {
+  const workDir = await makeTempDir();
+  try {
+    const input = join(workDir, "comic");
+    const output = join(workDir, "comic_upscaled");
+    await writeSampleComic(input);
+    await writeFile(join(input, "chapter1", "page02.gif"), "gif-page");
+    await writeFile(join(input, "back.bmp"), "bmp-page");
+    const engine = fakeEngine();
+
+    await upscaleCbz(makeArgs(input, output), engine, dirArchive);
+
+    assert.deepEqual(engine.calls[0].files, [join("chapter1", "page01.png"), "cover.jpg"]);
+    assert.equal(await readFile(join(output, "chapter1", "page02.gif"), "utf8"), "gif-page");
+    assert.equal(await readFile(join(output, "back.bmp"), "utf8"), "bmp-page");
+    assert.equal(await readFile(join(output, "cover.jpg"), "utf8"), "upscaled:4:cover");
+  } finally {
+    await rm(workDir, { recursive: true });
+  }
+});
+
 test("upscaleCbz - propagates engine failures", async () => {
   const workDir = await makeTempDir();
   try {
