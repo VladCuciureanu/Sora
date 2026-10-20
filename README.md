@@ -3,7 +3,10 @@
 Sora upscales the pages of a CBZ comic archive with [waifu2x-ncnn-vulkan](https://github.com/nihui/waifu2x-ncnn-vulkan) and writes a new CBZ next to the original.
 
 ```sh
-$ sora manga-vol1.cbz -s 4 -n 2
+sora manga-vol1.cbz -s 4 -n 2
+```
+
+```text
 Upscaling manga-vol1.cbz...
   Engine: waifu2x | Scale: 4x | Noise: 2
 Extracting CBZ...
@@ -20,7 +23,8 @@ JPEG, PNG and WebP pages are upscaled. Everything else in the archive (GIF/BMP/T
 
 - Node.js 26 or newer
 - `zip` and `unzip` on your `PATH`
-- A [waifu2x-ncnn-vulkan](https://github.com/nihui/waifu2x-ncnn-vulkan/releases) binary
+- A [waifu2x-ncnn-vulkan](https://github.com/nihui/waifu2x-ncnn-vulkan/releases) binary, with the release's `models-cunet` directory left next to it (Sora uses the default model)
+- A Vulkan-capable GPU (required by waifu2x-ncnn-vulkan)
 
 ## Install
 
