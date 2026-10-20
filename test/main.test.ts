@@ -1,6 +1,6 @@
-import { test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
+import { test } from "node:test";
 import { createEngine, parseCliArgs as parseOrHelp, UsageError } from "../src/main.ts";
 
 function parseCliArgs(args: string[]) {
@@ -22,11 +22,16 @@ test("parseCliArgs - parses minimal args", () => {
 test("parseCliArgs - parses all options", () => {
   const args = parseCliArgs([
     join("comics", "vol1.cbz"),
-    "-o", join("out", "vol1_4x.cbz"),
-    "-e", "waifu2x",
-    "-s", "4",
-    "-n", "2",
-    "--config", join("tmp", "config.json"),
+    "-o",
+    join("out", "vol1_4x.cbz"),
+    "-e",
+    "waifu2x",
+    "-s",
+    "4",
+    "-n",
+    "2",
+    "--config",
+    join("tmp", "config.json"),
     "--dry-run",
   ]);
   assert.equal(args.input, join("comics", "vol1.cbz"));
@@ -39,11 +44,7 @@ test("parseCliArgs - parses all options", () => {
 });
 
 test("parseCliArgs - uses long option names", () => {
-  const args = parseCliArgs([
-    "test.cbz",
-    "--output", "result.cbz",
-    "--engine", "waifu2x",
-  ]);
+  const args = parseCliArgs(["test.cbz", "--output", "result.cbz", "--engine", "waifu2x"]);
   assert.equal(args.output, "result.cbz");
   assert.equal(args.engine, "waifu2x");
 });
@@ -96,11 +97,19 @@ test("createEngine - creates the configured waifu2x engine", () => {
 });
 
 test("createEngine - rejects an unknown engine name even if configured", () => {
-  const config = { engines: { ...waifu2xConfig.engines, realesrgan: { binaryPath: "realesrgan" } } };
-  assert.throws(() => createEngine("realesrgan", config), /Unknown engine "realesrgan"\. Available: waifu2x/);
+  const config = {
+    engines: { ...waifu2xConfig.engines, realesrgan: { binaryPath: "realesrgan" } },
+  };
+  assert.throws(
+    () => createEngine("realesrgan", config),
+    /Unknown engine "realesrgan"\. Available: waifu2x/,
+  );
   assert.throws(() => createEngine("toString", config), /Unknown engine "toString"/);
 });
 
 test("createEngine - rejects a known engine missing from the config", () => {
-  assert.throws(() => createEngine("waifu2x", { engines: {} }), /Engine "waifu2x" is not configured/);
+  assert.throws(
+    () => createEngine("waifu2x", { engines: {} }),
+    /Engine "waifu2x" is not configured/,
+  );
 });

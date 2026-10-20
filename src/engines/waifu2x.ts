@@ -1,9 +1,9 @@
 import { mkdir, readdir, stat } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 import process from "node:process";
-import type { UpscaleEngine, UpscaleOpts } from "./engine.ts";
 import { isImageFile } from "../cbz.ts";
-import { run, type RunResult } from "../exec.ts";
+import { type RunResult, run } from "../exec.ts";
+import type { UpscaleEngine, UpscaleOpts } from "./engine.ts";
 
 const DEFAULT_CONCURRENCY = 1;
 
@@ -43,7 +43,10 @@ export function createWaifu2xEngine(config: Waifu2xConfig): UpscaleEngine {
         const inputPath = join(inputDir, file);
         const outputPath = join(outputDir, file);
         await mkdir(dirname(outputPath), { recursive: true });
-        const result = await runner(config.binaryPath, buildWaifu2xArgs(inputPath, outputPath, opts));
+        const result = await runner(
+          config.binaryPath,
+          buildWaifu2xArgs(inputPath, outputPath, opts),
+        );
         if (!result.success) {
           throw new Error(`waifu2x failed on ${file}: ${result.stderr}`);
         }

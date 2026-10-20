@@ -1,10 +1,10 @@
-import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import process from "node:process";
+import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const mainPath = fileURLToPath(new URL("../src/main.ts", import.meta.url));

@@ -1,10 +1,10 @@
-import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createUpscaleMetadata, METADATA_FILENAME, writeUpscaleMetadata } from "../src/metadata.ts";
+import { test } from "node:test";
 import type { UpscaleMetadata } from "../src/metadata.ts";
+import { createUpscaleMetadata, METADATA_FILENAME, writeUpscaleMetadata } from "../src/metadata.ts";
 
 const makeTempDir = () => mkdtemp(join(tmpdir(), "sora-test-"));
 
