@@ -204,3 +204,22 @@ test("loadConfig - the not-found error lists every default path checked", async 
     );
   });
 });
+
+test("loadConfig - skips an XDG_CONFIG_HOME config path that is a directory", async () => {
+  await withConfigDirs({ home: configWith("from-home") }, async (env, paths) => {
+    await mkdir(paths.xdg, { recursive: true });
+    const config = await loadConfig(undefined, env);
+    assert.equal(config.engines.waifu2x.binaryPath, "from-home");
+  });
+});
+
+test("loadConfig - rejects a --config path that is a directory", async () => {
+  const dir = await makeTempDir();
+  try {
+    await assert.rejects(() => loadConfig(dir), {
+      message: `Config path ${dir} is a directory, not a file`,
+    });
+  } finally {
+    await rm(dir, { recursive: true });
+  }
+});

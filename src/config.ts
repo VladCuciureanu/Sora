@@ -58,15 +58,14 @@ function isNotFound(e: unknown): boolean {
 }
 
 /**
- * Return the first of `defaultConfigPaths(env)` that exists. Throws with setup
- * instructions, listing every path checked, if none does.
+ * Return the first of `defaultConfigPaths(env)` that is a regular file. Throws
+ * with setup instructions, listing every path checked, if none is.
  */
 export async function findConfigPath(env: NodeJS.ProcessEnv = process.env): Promise<string> {
   const candidates = defaultConfigPaths(env);
   for (const path of candidates) {
     try {
-      await stat(path);
-      return path;
+      if ((await stat(path)).isFile()) return path;
     } catch (e) {
       if (!isNotFound(e)) throw e;
     }
@@ -87,6 +86,9 @@ export async function loadConfig(
   } catch (e) {
     if (isNotFound(e)) {
       throw notFoundError([path]);
+    }
+    if ((e as NodeJS.ErrnoException).code === "EISDIR") {
+      throw new Error(`Config path ${path} is a directory, not a file`);
     }
     throw e;
   }
