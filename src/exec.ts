@@ -5,6 +5,9 @@ export interface RunResult {
   stderr: string;
 }
 
+/** Signature of `run`, so tests can substitute a fake for external commands. */
+export type Runner = typeof run;
+
 /**
  * Run a command to completion, discarding stdout and capturing stderr.
  * Rejects only if the process cannot be spawned (e.g. ENOENT);

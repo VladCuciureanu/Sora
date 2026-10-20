@@ -3,12 +3,12 @@ import { copyFile, mkdir, stat } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import process from "node:process";
 import { parseArgs } from "node:util";
-import { type CbzContents, extractCbz, repackCbz } from "./cbz.ts";
-import { type Config, type EngineConfig, loadConfig } from "./config.ts";
-import type { UpscaleEngine } from "./engines/engine.ts";
-import { createWaifu2xEngine } from "./engines/waifu2x.ts";
+import { extractCbz, repackCbz } from "./cbz.ts";
+import { defaultConfigPath, type EngineConfig, loadConfig } from "./config.ts";
+import type { Runner } from "./exec.ts";
 import { createUpscaleMetadata, writeUpscaleMetadata } from "./metadata.ts";
 import { withTempContext } from "./temp.ts";
+import { isWaifu2xAvailable, upscaleImages } from "./waifu2x.ts";
 
 const HELP = `Sora — Upscale CBZ comic book archives
 
@@ -19,9 +19,9 @@ Options:
   -e, --engine <name>     Engine to use (default: waifu2x)
   -s, --scale <2|4>       Scale factor (default: 2)
   -n, --noise <-1..3>     Denoise level (default: -1, none)
-  -j, --concurrency <N>   Parallel upscaling processes (default: 1)
-  --config <path>         Config file path
-  --dry-run               Show what would be done
+  -j, --concurrency <N>   Parallel upscaling processes (default: config, else 1)
+  --config <path>         Config file (default: ${defaultConfigPath()})
+  --dry-run               Check config, binary and input, then print the plan
   -h, --help              Show this help`;
 
 export interface CliArgs {
@@ -46,16 +46,10 @@ export class UsageError extends Error {
   }
 }
 
-/**
- * Parse command-line arguments. Returns `null` when `--help` was requested.
- * Throws `UsageError` for invalid arguments.
- */
-export function parseCliArgs(args: string[]): CliArgs | null {
-  // strict: false: unknown flags are ignored and
-  // option values may start with a dash (e.g. `-n -1`).
-  const { values, positionals } = parseArgs({
+function parseOptions(args: string[]) {
+  return parseArgs({
     args,
-    strict: false,
+    strict: true,
     allowPositionals: true,
     options: {
       output: { type: "string", short: "o" },
@@ -64,82 +58,89 @@ export function parseCliArgs(args: string[]): CliArgs | null {
       noise: { type: "string", short: "n", default: "-1" },
       concurrency: { type: "string", short: "j" },
       config: { type: "string" },
-      help: { type: "boolean", short: "h" },
-      "dry-run": { type: "boolean" },
+      help: { type: "boolean", short: "h", default: false },
+      "dry-run": { type: "boolean", default: false },
     },
   });
-  // With strict: false, a string option given without a value comes back as
-  // `true`; treat it as an empty string.
-  const str = (v: string | boolean | undefined) => (typeof v === "string" ? v : v ? "" : undefined);
-  const parsed = {
-    output: str(values.output),
-    engine: str(values.engine),
-    config: str(values.config),
-    scale: values.scale,
-    noise: values.noise,
-    concurrency: values.concurrency,
-    help: values.help,
-    "dry-run": values["dry-run"] === true,
-  };
+}
 
-  if (parsed.help) {
+/**
+ * Strict parseArgs rejects option values that start with a dash, so rewrite
+ * `-n -1` and `--noise -1` as `--noise=-1`. Arguments after `--` are left alone.
+ */
+function joinNegativeNoise(args: string[]): string[] {
+  const result: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--") {
+      result.push(...args.slice(i));
+      break;
+    }
+    if ((arg === "-n" || arg === "--noise") && /^-\d/.test(args[i + 1] ?? "")) {
+      result.push(`--noise=${args[++i]}`);
+    } else {
+      result.push(arg);
+    }
+  }
+  return result;
+}
+
+/**
+ * Parse command-line arguments. Returns `null` when `--help` was requested.
+ * Throws `UsageError` for invalid arguments.
+ */
+export function parseCliArgs(args: string[]): CliArgs | null {
+  let parsed: ReturnType<typeof parseOptions>;
+  try {
+    parsed = parseOptions(joinNegativeNoise(args));
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code?.startsWith("ERR_PARSE_ARGS_")) {
+      // Keep only the first sentence: Node appends multi-line hints.
+      throw new UsageError((err as Error).message.split(/\.\s/)[0]);
+    }
+    throw err;
+  }
+  const { values, positionals } = parsed;
+
+  if (values.help) {
     return null;
   }
 
-  const input = positionals[0];
+  const [input, ...extra] = positionals;
   if (!input) {
     throw new UsageError("input CBZ file is required", { showHelp: true });
   }
+  if (extra.length > 0) {
+    throw new UsageError(`Unexpected argument: ${extra[0]}`);
+  }
 
-  const scale = Number(parsed.scale);
+  const scale = Number(values.scale);
   if (![2, 4].includes(scale)) {
     throw new UsageError("--scale must be 2 or 4");
   }
 
-  const noise = Number(parsed.noise);
+  const noise = Number(values.noise);
   if (![-1, 0, 1, 2, 3].includes(noise)) {
     throw new UsageError("--noise must be -1, 0, 1, 2, or 3");
   }
 
-  const defaultOutput = join(dirname(input), `${basename(input, ".cbz")}_upscaled.cbz`);
-
-  const concurrency = parsed.concurrency != null ? Number(parsed.concurrency) : undefined;
-  if (concurrency != null && (!Number.isInteger(concurrency) || concurrency < 1)) {
+  const concurrency = values.concurrency === undefined ? undefined : Number(values.concurrency);
+  if (concurrency !== undefined && (!Number.isInteger(concurrency) || concurrency < 1)) {
     throw new UsageError("--concurrency must be a positive integer");
   }
 
   return {
     input,
-    output: parsed.output ?? defaultOutput,
-    engine: parsed.engine ?? "waifu2x",
+    output:
+      values.output ??
+      join(dirname(input), `${basename(input).replace(/\.cbz$/i, "")}_upscaled.cbz`),
+    engine: values.engine,
     scale,
     noise,
     concurrency,
-    configPath: parsed.config,
-    dryRun: parsed["dry-run"] ?? false,
+    configPath: values.config,
+    dryRun: values["dry-run"],
   };
-}
-
-const ENGINES: Record<string, (config: EngineConfig) => UpscaleEngine> = {
-  waifu2x: createWaifu2xEngine,
-};
-
-/**
- * Create the engine called `name` from its entry in `config`.
- * `concurrency`, when given, overrides the configured value.
- */
-export function createEngine(name: string, config: Config, concurrency?: number): UpscaleEngine {
-  const factory = Object.hasOwn(ENGINES, name) ? ENGINES[name] : undefined;
-  if (!factory) {
-    throw new Error(`Unknown engine "${name}". Available: ${Object.keys(ENGINES).join(", ")}`);
-  }
-  const engineConfig = Object.hasOwn(config.engines, name) ? config.engines[name] : undefined;
-  if (!engineConfig) {
-    throw new Error(
-      `Engine "${name}" is not configured. Add it under "engines" in your config file.`,
-    );
-  }
-  return factory({ ...engineConfig, concurrency: concurrency ?? engineConfig.concurrency });
 }
 
 async function main(): Promise<void> {
@@ -150,16 +151,24 @@ async function main(): Promise<void> {
   }
 
   const config = await loadConfig(args.configPath);
-  const engine = createEngine(args.engine, config, args.concurrency);
-
-  // Check engine availability
-  const available = await engine.checkAvailable();
-  if (!available) {
+  if (args.engine !== "waifu2x") {
+    throw new Error(`Unknown engine "${args.engine}". Available: waifu2x`);
+  }
+  const engine = config.engines.waifu2x;
+  if (!engine) {
     throw new Error(
-      `Engine "${args.engine}" binary not found or not executable.\n` +
-        `Check the binaryPath in your config file.`,
+      `Engine "${args.engine}" is not configured. Add it under "engines" in your config file.`,
     );
   }
+
+  if (!(await isWaifu2xAvailable(engine.binaryPath))) {
+    throw new Error(
+      `waifu2x binary not found or not executable: ${engine.binaryPath}. ` +
+        `Check binaryPath in ${args.configPath ?? defaultConfigPath()}`,
+    );
+  }
+
+  await assertInputFile(args.input);
 
   if (args.dryRun) {
     console.log("Dry run — would perform:");
@@ -168,11 +177,19 @@ async function main(): Promise<void> {
     console.log(`  Engine: ${args.engine}`);
     console.log(`  Scale:  ${args.scale}x`);
     console.log(`  Noise:  ${args.noise}`);
-    console.log(`  Available engines: ${Object.keys(ENGINES).join(", ")}`);
     return;
   }
 
   await upscaleCbz(args, engine);
+}
+
+async function assertInputFile(path: string): Promise<void> {
+  if (!(await pathExists(path))) {
+    throw new Error(`Input file not found: ${path}`);
+  }
+  if (!(await stat(path)).isFile()) {
+    throw new Error(`Input is not a file: ${path}`);
+  }
 }
 
 async function pathExists(path: string): Promise<boolean> {
@@ -185,20 +202,19 @@ async function pathExists(path: string): Promise<boolean> {
   }
 }
 
-/** Reads a CBZ into a directory and writes a directory back out as a CBZ. */
-export interface ArchiveIO {
-  extract(cbzPath: string, outputDir: string): Promise<CbzContents>;
-  repack(sourceDir: string, outputPath: string): Promise<void>;
-}
-
-const zipArchive: ArchiveIO = { extract: extractCbz, repack: repackCbz };
-
-/** Extract `args.input`, upscale its images with `engine`, and repack to `args.output`. */
+/**
+ * Extract `args.input`, upscale its images with the waifu2x binary in `engine`,
+ * and repack to `args.output`. `args.concurrency` overrides `engine.concurrency`.
+ */
 export async function upscaleCbz(
   args: CliArgs,
-  engine: UpscaleEngine,
-  archive: ArchiveIO = zipArchive,
+  engine: EngineConfig,
+  options: {
+    /** Runs unzip, waifu2x and zip; tests substitute a fake. */
+    run?: Runner;
+  } = {},
 ): Promise<void> {
+  const { run } = options;
   // Fail before doing any work rather than after upscaling every page.
   if (await pathExists(args.output)) {
     throw new Error(`Output file already exists: ${args.output}`);
@@ -210,16 +226,19 @@ export async function upscaleCbz(
   await withTempContext(async (ctx) => {
     // Extract
     console.log("Extracting CBZ...");
-    const contents = await archive.extract(args.input, ctx.inputDir);
+    const contents = await extractCbz(args.input, ctx.inputDir, { run });
     console.log(
       `  Found ${contents.imageFiles.length} images, ${contents.otherFiles.length} other files`,
     );
 
     // Upscale images
     console.log("Upscaling images...");
-    await engine.upscale(ctx.inputDir, ctx.outputDir, {
+    await upscaleImages(ctx.inputDir, ctx.outputDir, contents.imageFiles, {
+      binaryPath: engine.binaryPath,
       scale: args.scale,
       noise: args.noise,
+      concurrency: args.concurrency ?? engine.concurrency,
+      run,
     });
 
     // Copy non-image files unchanged, then record how the archive was upscaled
@@ -236,7 +255,7 @@ export async function upscaleCbz(
 
     // Repack
     console.log("Repacking CBZ...");
-    await archive.repack(ctx.outputDir, args.output);
+    await repackCbz(ctx.outputDir, args.output, { run });
   });
 
   console.log(`Done! Output: ${args.output}`);
@@ -244,7 +263,7 @@ export async function upscaleCbz(
 
 if (import.meta.main) {
   main().catch((err: unknown) => {
-    console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+    console.error(`sora: ${err instanceof Error ? err.message : String(err)}`);
     if (err instanceof UsageError && err.showHelp) {
       console.error(`\n${HELP}`);
     }

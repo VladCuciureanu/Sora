@@ -8,9 +8,9 @@ export interface TempContext {
   cleanup(): Promise<void>;
 }
 
-export async function createTempContext(prefix = "sora"): Promise<TempContext> {
-  const inputDir = await mkdtemp(join(tmpdir(), `${prefix}-in-`));
-  const outputDir = await mkdtemp(join(tmpdir(), `${prefix}-out-`));
+export async function createTempContext(): Promise<TempContext> {
+  const inputDir = await mkdtemp(join(tmpdir(), "sora-in-"));
+  const outputDir = await mkdtemp(join(tmpdir(), "sora-out-"));
 
   const cleanup = async () => {
     await rm(inputDir, { recursive: true }).catch(() => {});
@@ -20,11 +20,8 @@ export async function createTempContext(prefix = "sora"): Promise<TempContext> {
   return { inputDir, outputDir, cleanup };
 }
 
-export async function withTempContext<T>(
-  fn: (ctx: TempContext) => Promise<T>,
-  prefix?: string,
-): Promise<T> {
-  const ctx = await createTempContext(prefix);
+export async function withTempContext<T>(fn: (ctx: TempContext) => Promise<T>): Promise<T> {
+  const ctx = await createTempContext();
   try {
     return await fn(ctx);
   } finally {

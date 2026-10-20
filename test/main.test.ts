@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { test } from "node:test";
-import { createEngine, parseCliArgs as parseOrHelp, UsageError } from "../src/main.ts";
+import { parseCliArgs as parseOrHelp, UsageError } from "../src/main.ts";
 
 function parseCliArgs(args: string[]) {
   const parsed = parseOrHelp(args);
@@ -90,26 +90,38 @@ for (const [flag, value, message] of [
   });
 }
 
-const waifu2xConfig = { engines: { waifu2x: { binaryPath: "waifu2x-ncnn-vulkan" } } };
+for (const args of [
+  ["input.cbz", "-n", "-1"],
+  ["input.cbz", "--noise", "-1"],
+  ["input.cbz", "--noise=-1"],
+  ["input.cbz", "-n-1"],
+]) {
+  test(`parseCliArgs - accepts a negative noise level: ${args.slice(1).join(" ")}`, () => {
+    assert.equal(parseCliArgs(args).noise, -1);
+  });
+}
 
-test("createEngine - creates the configured waifu2x engine", () => {
-  assert.equal(createEngine("waifu2x", waifu2xConfig).name, "waifu2x");
-});
+for (const [args, message] of [
+  [["input.cbz", "--scal", "4"], /^Unknown option '--scal'$/],
+  [["input.cbz", "-x"], /^Unknown option '-x'$/],
+  [["input.cbz", "--dry-run=yes"], /^Option '--dry-run' does not take an argument$/],
+  [["input.cbz", "-o"], /^Option '-o, --output <value>' argument missing$/],
+  [["input.cbz", "-s", "-2"], /^Option '-s' argument is ambiguous$/],
+  [["input.cbz", "extra.cbz"], /^Unexpected argument: extra\.cbz$/],
+] as const) {
+  test(`parseCliArgs - rejects ${args.slice(1).join(" ")}`, () => {
+    assert.throws(
+      () => parseOrHelp([...args]),
+      (err: unknown) => {
+        assert.ok(err instanceof UsageError);
+        assert.match(err.message, message);
+        return true;
+      },
+    );
+  });
+}
 
-test("createEngine - rejects an unknown engine name even if configured", () => {
-  const config = {
-    engines: { ...waifu2xConfig.engines, realesrgan: { binaryPath: "realesrgan" } },
-  };
-  assert.throws(
-    () => createEngine("realesrgan", config),
-    /Unknown engine "realesrgan"\. Available: waifu2x/,
-  );
-  assert.throws(() => createEngine("toString", config), /Unknown engine "toString"/);
-});
-
-test("createEngine - rejects a known engine missing from the config", () => {
-  assert.throws(
-    () => createEngine("waifu2x", { engines: {} }),
-    /Engine "waifu2x" is not configured/,
-  );
+test("parseCliArgs - default output strips the .cbz extension in any case", () => {
+  assert.equal(parseCliArgs(["X.CBZ"]).output, "X_upscaled.cbz");
+  assert.equal(parseCliArgs([join("dir", "comic.Cbz")]).output, join("dir", "comic_upscaled.cbz"));
 });

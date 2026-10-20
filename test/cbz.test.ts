@@ -119,3 +119,28 @@ test("extractCbz and repackCbz - round trip", { skip: skipWithoutZip }, async ()
 
   await rm(workDir, { recursive: true });
 });
+
+test("categorizeFiles - finds images at any depth and leaves unreadable formats as other files", async () => {
+  const dir = await makeTempDir();
+  await mkdir(join(dir, "chapter1", "extras"), { recursive: true });
+  await writeFile(join(dir, "cover.jpg"), "cover");
+  await writeFile(join(dir, "chapter1", "page01.png"), "p1");
+  await writeFile(join(dir, "chapter1", "extras", "bonus.webp"), "bonus");
+  await writeFile(join(dir, "chapter1", "ComicInfo.xml"), "<xml/>");
+  await writeFile(join(dir, "chapter1", "anim.gif"), "gif");
+  await writeFile(join(dir, "scan.bmp"), "bmp");
+
+  const result = await categorizeFiles(dir);
+  assert.deepEqual(result.imageFiles, [
+    join("chapter1", "extras", "bonus.webp"),
+    join("chapter1", "page01.png"),
+    "cover.jpg",
+  ]);
+  assert.deepEqual(result.otherFiles, [
+    join("chapter1", "ComicInfo.xml"),
+    join("chapter1", "anim.gif"),
+    "scan.bmp",
+  ]);
+
+  await rm(dir, { recursive: true });
+});

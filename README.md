@@ -37,7 +37,7 @@ Or run from source without linking: `npm start -- <input.cbz> [options]`.
 
 ## Configuration
 
-Sora reads `$HOME/.config/sora/config.json` (`%USERPROFILE%\.config\sora\config.json` on Windows if `HOME` is unset), or the file given with `--config`. It must exist.
+Sora reads the file given with `--config`, or by default `$XDG_CONFIG_HOME/sora/config.json`. If `XDG_CONFIG_HOME` is unset, empty or not an absolute path, it reads `$HOME/.config/sora/config.json` instead (`%USERPROFILE%\.config\sora\config.json` on Windows if `HOME` is unset). The file must exist; if it doesn't, the error shows the path Sora looked for.
 
 ```json
 {
@@ -53,7 +53,9 @@ Sora reads `$HOME/.config/sora/config.json` (`%USERPROFILE%\.config\sora\config.
 | Key | Required | Description |
 |-----|----------|-------------|
 | `engines.waifu2x.binaryPath` | yes | Path to the waifu2x-ncnn-vulkan binary |
-| `engines.waifu2x.concurrency` | no | Number of waifu2x processes to run at once (default `1`); `-j` overrides it |
+| `engines.waifu2x.concurrency` | no | Number of waifu2x processes to run at once, a positive integer (default `1`); `-j` overrides it |
+
+Any other key, or an engine other than `waifu2x`, is an error.
 
 ## Usage
 
@@ -63,16 +65,16 @@ sora <input.cbz> [options]
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `-o, --output <path>` | Output file; must not already exist | `<input>_upscaled.cbz` in the input's directory |
+| `-o, --output <path>` | Output file; must not already exist | `<input>_upscaled.cbz` in the input's directory, where `<input>` is the file name without `.cbz` (any case) |
 | `-e, --engine <name>` | Engine (only `waifu2x` exists) | `waifu2x` |
 | `-s, --scale <2\|4>` | Scale factor | `2` |
 | `-n, --noise <-1..3>` | Denoise level; `-1` disables denoising | `-1` |
 | `-j, --concurrency <N>` | Parallel waifu2x processes | config value, else `1` |
-| `--config <path>` | Config file | `~/.config/sora/config.json` |
-| `--dry-run` | Check the config and binary, print the plan, and exit | |
+| `--config <path>` | Config file | `$XDG_CONFIG_HOME/sora/config.json`, else `~/.config/sora/config.json` |
+| `--dry-run` | Check the config, binary and input file, print the plan, and exit | |
 | `-h, --help` | Print help | |
 
-Unrecognised options are ignored. Errors go to stderr and exit with status 1.
+Unknown options and extra arguments are errors. Errors go to stderr, prefixed `sora:`, and exit with status 1.
 
 ```sh
 sora manga-vol1.cbz -o manga-vol1-hd.cbz -j 4

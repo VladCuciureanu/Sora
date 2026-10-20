@@ -1,6 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { basename, extname, join, relative, resolve } from "node:path";
-import { run } from "./exec.ts";
+import { run as defaultRun, type Runner } from "./exec.ts";
 
 // Formats waifu2x-ncnn-vulkan can read. Other images (gif, bmp, tiff, ...)
 // are treated as ordinary files and copied through unchanged.
@@ -18,7 +18,11 @@ export function isImageFile(path: string): boolean {
   return IMAGE_EXTENSIONS.has(extname(path).toLowerCase());
 }
 
-export async function extractCbz(cbzPath: string, outputDir: string): Promise<CbzContents> {
+export async function extractCbz(
+  cbzPath: string,
+  outputDir: string,
+  { run = defaultRun }: { run?: Runner } = {},
+): Promise<CbzContents> {
   // Extract via the system `unzip` command
   const result = await run("unzip", ["-o", cbzPath, "-d", outputDir]);
   if (!result.success) {
@@ -32,8 +36,9 @@ export async function categorizeFiles(dir: string): Promise<CbzContents> {
   const imageFiles: string[] = [];
   const otherFiles: string[] = [];
 
-  for await (const entry of walkFiles(dir)) {
-    const rel = relative(dir, entry);
+  for (const entry of await readdir(dir, { withFileTypes: true, recursive: true })) {
+    if (!entry.isFile()) continue;
+    const rel = relative(dir, join(entry.parentPath, entry.name));
     if (isImageFile(rel)) {
       imageFiles.push(rel);
     } else {
@@ -46,19 +51,12 @@ export async function categorizeFiles(dir: string): Promise<CbzContents> {
   return { imageFiles, otherFiles };
 }
 
-async function* walkFiles(dir: string): AsyncGenerator<string> {
-  for (const entry of await readdir(dir, { withFileTypes: true })) {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      yield* walkFiles(path);
-    } else if (entry.isFile()) {
-      yield path;
-    }
-  }
-}
-
 /** Zip `sourceDir` into `outputPath`. The caller ensures `outputPath` does not exist yet. */
-export async function repackCbz(sourceDir: string, outputPath: string): Promise<void> {
+export async function repackCbz(
+  sourceDir: string,
+  outputPath: string,
+  { run = defaultRun }: { run?: Runner } = {},
+): Promise<void> {
   // zip runs inside sourceDir, so a relative outputPath must be resolved first
   // or the archive lands in the temp dir and is deleted with it.
   const result = await run("zip", ["-r", resolve(outputPath), "."], { cwd: sourceDir });

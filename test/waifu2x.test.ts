@@ -5,13 +5,8 @@ import { basename, join } from "node:path";
 import process from "node:process";
 import { test } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
-import {
-  buildWaifu2xArgs,
-  collectImageFiles,
-  createWaifu2xEngine,
-  runPool,
-} from "../../src/engines/waifu2x.ts";
-import type { RunResult } from "../../src/exec.ts";
+import type { RunResult } from "../src/exec.ts";
+import { buildWaifu2xArgs, isWaifu2xAvailable, runPool, upscaleImages } from "../src/waifu2x.ts";
 
 const makeTempDir = () => mkdtemp(join(tmpdir(), "sora-test-"));
 const inImg = join("in", "img.jpg");
@@ -40,26 +35,6 @@ test("buildWaifu2xArgs - noise level 0 is included", () => {
   assert.deepEqual(args, ["-i", inImg, "-o", outImg, "-s", "2", "-n", "0"]);
 });
 
-test("collectImageFiles - includes images in subfolders as relative paths", async () => {
-  const dir = await makeTempDir();
-  await mkdir(join(dir, "chapter1", "extras"), { recursive: true });
-  await writeFile(join(dir, "cover.jpg"), "cover");
-  await writeFile(join(dir, "chapter1", "page01.png"), "p1");
-  await writeFile(join(dir, "chapter1", "extras", "bonus.webp"), "bonus");
-  await writeFile(join(dir, "chapter1", "ComicInfo.xml"), "<xml/>");
-  await writeFile(join(dir, "chapter1", "anim.gif"), "gif");
-  await writeFile(join(dir, "scan.bmp"), "bmp");
-
-  const files = await collectImageFiles(dir);
-  assert.deepEqual(files, [
-    join("chapter1", "extras", "bonus.webp"),
-    join("chapter1", "page01.png"),
-    "cover.jpg",
-  ]);
-
-  await rm(dir, { recursive: true });
-});
-
 test("waifu2x upscale - processes nested images and preserves relative paths", async () => {
   const workDir = await makeTempDir();
   const inputDir = join(workDir, "in");
@@ -69,8 +44,12 @@ test("waifu2x upscale - processes nested images and preserves relative paths", a
   await writeFile(join(inputDir, "cover.jpg"), "cover");
   await writeFile(join(inputDir, "chapter1", "page01.png"), "nested");
 
-  const engine = createWaifu2xEngine({ binaryPath: "waifu2x", runner: copyRunner });
-  await engine.upscale(inputDir, outputDir, { scale: 2, noise: -1 });
+  await upscaleImages(inputDir, outputDir, ["cover.jpg", join("chapter1", "page01.png")], {
+    binaryPath: "waifu2x",
+    scale: 2,
+    noise: -1,
+    run: copyRunner,
+  });
 
   assert.equal(await readFile(join(outputDir, "cover.jpg"), "utf8"), "cover");
   assert.equal(await readFile(join(outputDir, "chapter1", "page01.png"), "utf8"), "nested");
@@ -159,11 +138,16 @@ test("waifu2x upscale - concurrent failure rejects once with no unhandled reject
     throw new Error(`spawn failed for ${name}`);
   };
 
-  const engine = createWaifu2xEngine({ binaryPath: "waifu2x", concurrency: 3, runner });
   let result: PromiseSettledResult<void> | undefined;
   const unhandled = await captureUnhandledRejections(async () => {
     [result] = await Promise.allSettled([
-      engine.upscale(inputDir, outputDir, { scale: 2, noise: -1 }).finally(() => {
+      upscaleImages(inputDir, outputDir, ["a.jpg", "b.jpg", "c.jpg", "d.jpg"], {
+        binaryPath: "waifu2x",
+        scale: 2,
+        noise: -1,
+        concurrency: 3,
+        run: runner,
+      }).finally(() => {
         // Every started task must have settled before upscale settles.
         assert.equal(inFlight.size, 0);
       }),
@@ -175,4 +159,31 @@ test("waifu2x upscale - concurrent failure rejects once with no unhandled reject
   assert.deepEqual(unhandled, []);
 
   await rm(workDir, { recursive: true });
+});
+
+test("isWaifu2xAvailable - accepts an executable file", async () => {
+  assert.equal(await isWaifu2xAvailable(process.execPath), true);
+});
+
+test("isWaifu2xAvailable - rejects a missing path and a directory", async () => {
+  const dir = await makeTempDir();
+  try {
+    assert.equal(await isWaifu2xAvailable(join(dir, "missing")), false);
+    assert.equal(await isWaifu2xAvailable(dir), false);
+  } finally {
+    await rm(dir, { recursive: true });
+  }
+});
+
+test("isWaifu2xAvailable - rejects a file without execute permission", {
+  skip: process.platform === "win32" ? "Windows has no execute permission bit" : false,
+}, async () => {
+  const dir = await makeTempDir();
+  try {
+    const binary = join(dir, "waifu2x-ncnn-vulkan");
+    await writeFile(binary, "", { mode: 0o644 });
+    assert.equal(await isWaifu2xAvailable(binary), false);
+  } finally {
+    await rm(dir, { recursive: true });
+  }
 });
