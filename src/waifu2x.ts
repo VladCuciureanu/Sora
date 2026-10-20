@@ -1,7 +1,6 @@
-import { mkdir, readdir, stat } from "node:fs/promises";
-import { dirname, join, relative } from "node:path";
+import { mkdir, stat } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import process from "node:process";
-import { isImageFile } from "./cbz.ts";
 import { run as defaultRun, type Runner } from "./exec.ts";
 
 const DEFAULT_CONCURRENCY = 1;
@@ -25,14 +24,17 @@ export async function isWaifu2xAvailable(binaryPath: string): Promise<boolean> {
   }
 }
 
-/** Upscale every image under `inputDir` into the same relative path under `outputDir`. */
+/**
+ * Upscale `files` (paths relative to `inputDir`) into the same relative paths
+ * under `outputDir`.
+ */
 export async function upscaleImages(
   inputDir: string,
   outputDir: string,
+  files: string[],
   options: Waifu2xOptions,
 ): Promise<void> {
   const { binaryPath, concurrency = DEFAULT_CONCURRENCY, run = defaultRun } = options;
-  const files = await collectImageFiles(inputDir);
   if (files.length === 0) {
     throw new Error("No image files found to upscale");
   }
@@ -58,17 +60,6 @@ export async function upscaleImages(
   } finally {
     if (processed > 0) console.log(); // end the progress line
   }
-}
-
-/** Recursively collect image files under `dir`, as paths relative to `dir`. */
-export async function collectImageFiles(dir: string): Promise<string[]> {
-  const files: string[] = [];
-  for (const entry of await readdir(dir, { withFileTypes: true, recursive: true })) {
-    if (entry.isFile() && isImageFile(entry.name)) {
-      files.push(relative(dir, join(entry.parentPath, entry.name)));
-    }
-  }
-  return files.sort();
 }
 
 export function buildWaifu2xArgs(

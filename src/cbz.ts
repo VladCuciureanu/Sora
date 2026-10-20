@@ -36,8 +36,9 @@ export async function categorizeFiles(dir: string): Promise<CbzContents> {
   const imageFiles: string[] = [];
   const otherFiles: string[] = [];
 
-  for await (const entry of walkFiles(dir)) {
-    const rel = relative(dir, entry);
+  for (const entry of await readdir(dir, { withFileTypes: true, recursive: true })) {
+    if (!entry.isFile()) continue;
+    const rel = relative(dir, join(entry.parentPath, entry.name));
     if (isImageFile(rel)) {
       imageFiles.push(rel);
     } else {
@@ -48,17 +49,6 @@ export async function categorizeFiles(dir: string): Promise<CbzContents> {
   imageFiles.sort();
   otherFiles.sort();
   return { imageFiles, otherFiles };
-}
-
-async function* walkFiles(dir: string): AsyncGenerator<string> {
-  for (const entry of await readdir(dir, { withFileTypes: true })) {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      yield* walkFiles(path);
-    } else if (entry.isFile()) {
-      yield path;
-    }
-  }
 }
 
 /** Zip `sourceDir` into `outputPath`. The caller ensures `outputPath` does not exist yet. */

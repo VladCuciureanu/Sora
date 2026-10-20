@@ -6,7 +6,7 @@ import process from "node:process";
 import { test } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 import type { RunResult } from "../src/exec.ts";
-import { buildWaifu2xArgs, collectImageFiles, runPool, upscaleImages } from "../src/waifu2x.ts";
+import { buildWaifu2xArgs, runPool, upscaleImages } from "../src/waifu2x.ts";
 
 const makeTempDir = () => mkdtemp(join(tmpdir(), "sora-test-"));
 const inImg = join("in", "img.jpg");
@@ -35,26 +35,6 @@ test("buildWaifu2xArgs - noise level 0 is included", () => {
   assert.deepEqual(args, ["-i", inImg, "-o", outImg, "-s", "2", "-n", "0"]);
 });
 
-test("collectImageFiles - includes images in subfolders as relative paths", async () => {
-  const dir = await makeTempDir();
-  await mkdir(join(dir, "chapter1", "extras"), { recursive: true });
-  await writeFile(join(dir, "cover.jpg"), "cover");
-  await writeFile(join(dir, "chapter1", "page01.png"), "p1");
-  await writeFile(join(dir, "chapter1", "extras", "bonus.webp"), "bonus");
-  await writeFile(join(dir, "chapter1", "ComicInfo.xml"), "<xml/>");
-  await writeFile(join(dir, "chapter1", "anim.gif"), "gif");
-  await writeFile(join(dir, "scan.bmp"), "bmp");
-
-  const files = await collectImageFiles(dir);
-  assert.deepEqual(files, [
-    join("chapter1", "extras", "bonus.webp"),
-    join("chapter1", "page01.png"),
-    "cover.jpg",
-  ]);
-
-  await rm(dir, { recursive: true });
-});
-
 test("waifu2x upscale - processes nested images and preserves relative paths", async () => {
   const workDir = await makeTempDir();
   const inputDir = join(workDir, "in");
@@ -64,7 +44,7 @@ test("waifu2x upscale - processes nested images and preserves relative paths", a
   await writeFile(join(inputDir, "cover.jpg"), "cover");
   await writeFile(join(inputDir, "chapter1", "page01.png"), "nested");
 
-  await upscaleImages(inputDir, outputDir, {
+  await upscaleImages(inputDir, outputDir, ["cover.jpg", join("chapter1", "page01.png")], {
     binaryPath: "waifu2x",
     scale: 2,
     noise: -1,
@@ -161,7 +141,7 @@ test("waifu2x upscale - concurrent failure rejects once with no unhandled reject
   let result: PromiseSettledResult<void> | undefined;
   const unhandled = await captureUnhandledRejections(async () => {
     [result] = await Promise.allSettled([
-      upscaleImages(inputDir, outputDir, {
+      upscaleImages(inputDir, outputDir, ["a.jpg", "b.jpg", "c.jpg", "d.jpg"], {
         binaryPath: "waifu2x",
         scale: 2,
         noise: -1,

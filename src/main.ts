@@ -200,7 +200,7 @@ export async function upscaleCbz(
 
     // Upscale images
     console.log("Upscaling images...");
-    await upscaleImages(ctx.inputDir, ctx.outputDir, {
+    await upscaleImages(ctx.inputDir, ctx.outputDir, contents.imageFiles, {
       binaryPath: engine.binaryPath,
       scale: args.scale,
       noise: args.noise,
