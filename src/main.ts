@@ -6,7 +6,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { loadConfig, type Config, type EngineConfig } from "./config.ts";
-import { extractCbz, repackCbz } from "./cbz.ts";
+import { extractCbz, repackCbz, type CbzContents } from "./cbz.ts";
 import { withTempContext } from "./temp.ts";
 import type { UpscaleEngine } from "./engines/engine.ts";
 import { createWaifu2xEngine } from "./engines/waifu2x.ts";
@@ -184,13 +184,30 @@ async function main(): Promise<void> {
     if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
   }
 
+  await upscaleCbz(args, engine);
+}
+
+/** Reads a CBZ into a directory and writes a directory back out as a CBZ. */
+export interface ArchiveIO {
+  extract(cbzPath: string, outputDir: string): Promise<CbzContents>;
+  repack(sourceDir: string, outputPath: string): Promise<void>;
+}
+
+const zipArchive: ArchiveIO = { extract: extractCbz, repack: repackCbz };
+
+/** Extract `args.input`, upscale its images with `engine`, and repack to `args.output`. */
+export async function upscaleCbz(
+  args: CliArgs,
+  engine: UpscaleEngine,
+  archive: ArchiveIO = zipArchive,
+): Promise<void> {
   console.log(`Upscaling ${args.input}...`);
   console.log(`  Engine: ${args.engine} | Scale: ${args.scale}x | Noise: ${args.noise}`);
 
   await withTempContext(async (ctx) => {
     // Extract
     console.log("Extracting CBZ...");
-    const contents = await extractCbz(args.input, ctx.inputDir);
+    const contents = await archive.extract(args.input, ctx.inputDir);
     console.log(`  Found ${contents.imageFiles.length} images, ${contents.otherFiles.length} other files`);
 
     // Upscale images
@@ -212,7 +229,7 @@ async function main(): Promise<void> {
 
     // Repack
     console.log("Repacking CBZ...");
-    await repackCbz(ctx.outputDir, args.output);
+    await archive.repack(ctx.outputDir, args.output);
   });
 
   console.log(`Done! Output: ${args.output}`);
