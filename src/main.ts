@@ -131,7 +131,9 @@ export function parseCliArgs(args: string[]): CliArgs | null {
 
   return {
     input,
-    output: values.output ?? join(dirname(input), `${basename(input, ".cbz")}_upscaled.cbz`),
+    output:
+      values.output ??
+      join(dirname(input), `${basename(input).replace(/\.cbz$/i, "")}_upscaled.cbz`),
     engine: values.engine,
     scale,
     noise,

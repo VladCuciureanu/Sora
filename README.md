@@ -63,7 +63,7 @@ sora <input.cbz> [options]
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `-o, --output <path>` | Output file; must not already exist | `<input>_upscaled.cbz` in the input's directory |
+| `-o, --output <path>` | Output file; must not already exist | `<input>_upscaled.cbz` in the input's directory, where `<input>` is the file name without `.cbz` (any case) |
 | `-e, --engine <name>` | Engine (only `waifu2x` exists) | `waifu2x` |
 | `-s, --scale <2\|4>` | Scale factor | `2` |
 | `-n, --noise <-1..3>` | Denoise level; `-1` disables denoising | `-1` |

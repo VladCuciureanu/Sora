@@ -120,3 +120,8 @@ for (const [args, message] of [
     );
   });
 }
+
+test("parseCliArgs - default output strips the .cbz extension in any case", () => {
+  assert.equal(parseCliArgs(["X.CBZ"]).output, "X_upscaled.cbz");
+  assert.equal(parseCliArgs([join("dir", "comic.Cbz")]).output, join("dir", "comic_upscaled.cbz"));
+});
