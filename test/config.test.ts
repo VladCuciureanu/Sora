@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
@@ -147,3 +147,60 @@ for (const [name, data, message] of [
     await assert.rejects(() => loadConfigJson(data), { message });
   });
 }
+
+async function withConfigDirs(
+  files: { xdg?: unknown; home?: unknown },
+  fn: (env: NodeJS.ProcessEnv, paths: { xdg: string; home: string }) => Promise<void>,
+) {
+  const dir = await makeTempDir();
+  try {
+    const env = { XDG_CONFIG_HOME: join(dir, "xdg"), HOME: join(dir, "home") };
+    const paths = {
+      xdg: join(env.XDG_CONFIG_HOME, "sora", "config.json"),
+      home: join(env.HOME, ".config", "sora", "config.json"),
+    };
+    for (const key of ["xdg", "home"] as const) {
+      if (files[key] !== undefined) {
+        await mkdir(dirname(paths[key]), { recursive: true });
+        await writeFile(paths[key], JSON.stringify(files[key]));
+      }
+    }
+    await fn(env, paths);
+  } finally {
+    await rm(dir, { recursive: true });
+  }
+}
+
+const configWith = (binaryPath: string) => ({ engines: { waifu2x: { binaryPath } } });
+
+test("loadConfig - falls back to ~/.config when XDG_CONFIG_HOME has no config", async () => {
+  await withConfigDirs({ home: configWith("from-home") }, async (env) => {
+    const config = await loadConfig(undefined, env);
+    assert.equal(config.engines.waifu2x.binaryPath, "from-home");
+  });
+});
+
+test("loadConfig - prefers the XDG_CONFIG_HOME config over ~/.config", async () => {
+  await withConfigDirs(
+    { xdg: configWith("from-xdg"), home: configWith("from-home") },
+    async (env) => {
+      const config = await loadConfig(undefined, env);
+      assert.equal(config.engines.waifu2x.binaryPath, "from-xdg");
+    },
+  );
+});
+
+test("loadConfig - the not-found error lists every default path checked", async () => {
+  await withConfigDirs({}, async (env, paths) => {
+    await assert.rejects(
+      () => loadConfig(undefined, env),
+      (err: Error) => {
+        assert.match(err.message, /^Config file not found/);
+        assert.match(err.message, new RegExp(`^  ${RegExp.escape(paths.xdg)}$`, "m"));
+        assert.match(err.message, new RegExp(`^  ${RegExp.escape(paths.home)}$`, "m"));
+        assert.match(err.message, new RegExp(`cat > "${RegExp.escape(paths.xdg)}"`));
+        return true;
+      },
+    );
+  });
+});

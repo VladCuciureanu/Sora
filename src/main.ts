@@ -4,7 +4,13 @@ import { basename, dirname, join } from "node:path";
 import process from "node:process";
 import { parseArgs } from "node:util";
 import { extractCbz, repackCbz } from "./cbz.ts";
-import { defaultConfigPath, type EngineConfig, loadConfig } from "./config.ts";
+import {
+  defaultConfigPaths,
+  ENGINE_NAMES,
+  type EngineConfig,
+  findConfigPath,
+  loadConfig,
+} from "./config.ts";
 import type { Runner } from "./exec.ts";
 import { createUpscaleMetadata, writeUpscaleMetadata } from "./metadata.ts";
 import { withTempContext } from "./temp.ts";
@@ -20,7 +26,7 @@ Options:
   -s, --scale <2|4>       Scale factor (default: 2)
   -n, --noise <-1..3>     Denoise level (default: -1, none)
   -j, --concurrency <N>   Parallel upscaling processes (default: config, else 1)
-  --config <path>         Config file (default: ${defaultConfigPath()})
+  --config <path>         Config file (default: ${defaultConfigPaths().join(", else ")})
   --dry-run               Check config, binary and input, then print the plan
   -h, --help              Show this help`;
 
@@ -172,6 +178,13 @@ export function parseCliArgs(args: string[]): CliArgs | null {
     throw new UsageError("--concurrency must be a positive integer");
   }
 
+  // Checked here, before the config is loaded, so a typo is not reported as a config problem.
+  if (!ENGINE_NAMES.includes(values.engine)) {
+    throw new UsageError(
+      `Unknown engine "${values.engine}". Available: ${ENGINE_NAMES.join(", ")}`,
+    );
+  }
+
   return {
     input,
     output:
@@ -193,10 +206,8 @@ async function main(): Promise<void> {
     return;
   }
 
-  const config = await loadConfig(args.configPath);
-  if (args.engine !== "waifu2x") {
-    throw new Error(`Unknown engine "${args.engine}". Available: waifu2x`);
-  }
+  const configPath = args.configPath ?? (await findConfigPath());
+  const config = await loadConfig(configPath);
   const engine = config.engines.waifu2x;
   if (!engine) {
     throw new Error(
@@ -207,7 +218,7 @@ async function main(): Promise<void> {
   if (!(await isWaifu2xAvailable(engine.binaryPath))) {
     throw new Error(
       `waifu2x binary not found or not executable: ${engine.binaryPath}. ` +
-        `Check binaryPath in ${args.configPath ?? defaultConfigPath()}`,
+        `Check binaryPath in ${configPath}`,
     );
   }
 

@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
 import process from "node:process";
 
@@ -12,36 +12,81 @@ export interface Config {
 }
 
 /**
- * `$XDG_CONFIG_HOME/sora/config.json`, or `~/.config/sora/config.json` when
- * XDG_CONFIG_HOME is unset, empty or relative (as the XDG spec requires).
+ * The default config file locations, in the order they are tried:
+ * `$XDG_CONFIG_HOME/sora/config.json` (only when XDG_CONFIG_HOME is an absolute
+ * path, as the XDG spec requires), then `~/.config/sora/config.json`.
  */
-export function defaultConfigPath(env: NodeJS.ProcessEnv = process.env): string {
+export function defaultConfigPaths(env: NodeJS.ProcessEnv = process.env): string[] {
+  const home = join(env.HOME ?? env.USERPROFILE ?? ".", ".config", "sora", "config.json");
   const xdg = env.XDG_CONFIG_HOME;
-  const configHome =
-    xdg && isAbsolute(xdg) ? xdg : join(env.HOME ?? env.USERPROFILE ?? ".", ".config");
-  return join(configHome, "sora", "config.json");
+  if (!xdg || !isAbsolute(xdg)) {
+    return [home];
+  }
+  const xdgPath = join(xdg, "sora", "config.json");
+  return xdgPath === home ? [home] : [xdgPath, home];
 }
 
-export async function loadConfig(configPath?: string): Promise<Config> {
-  const path = configPath ?? defaultConfigPath();
+/** The preferred default config file location (the first of `defaultConfigPaths`). */
+export function defaultConfigPath(env: NodeJS.ProcessEnv = process.env): string {
+  return defaultConfigPaths(env)[0];
+}
+
+/** Setup instructions for creating `checked[0]`, naming every path that was checked. */
+function notFoundError(checked: string[]): Error {
+  const path = checked[0];
+  const where =
+    checked.length === 1
+      ? `Config file not found at ${path}`
+      : `Config file not found. Looked in:\n${checked.map((p) => `  ${p}`).join("\n")}`;
+  return new Error(
+    `${where}\n\n` +
+      `Create it with:\n` +
+      `  mkdir -p "${dirname(path)}"\n` +
+      `  cat > "${path}" << 'EOF'\n` +
+      `  {\n` +
+      `    "engines": {\n` +
+      `      "waifu2x": { "binaryPath": "/path/to/waifu2x-ncnn-vulkan" }\n` +
+      `    }\n` +
+      `  }\n` +
+      `  EOF`,
+  );
+}
+
+function isNotFound(e: unknown): boolean {
+  const code = (e as NodeJS.ErrnoException).code;
+  return code === "ENOENT" || code === "ENOTDIR";
+}
+
+/**
+ * Return the first of `defaultConfigPaths(env)` that exists. Throws with setup
+ * instructions, listing every path checked, if none does.
+ */
+export async function findConfigPath(env: NodeJS.ProcessEnv = process.env): Promise<string> {
+  const candidates = defaultConfigPaths(env);
+  for (const path of candidates) {
+    try {
+      await stat(path);
+      return path;
+    } catch (e) {
+      if (!isNotFound(e)) throw e;
+    }
+  }
+  throw notFoundError(candidates);
+}
+
+/** Load `configPath`, or the file `findConfigPath(env)` finds when it is omitted. */
+export async function loadConfig(
+  configPath?: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<Config> {
+  const path = configPath ?? (await findConfigPath(env));
 
   let raw: string;
   try {
     raw = await readFile(path, "utf8");
   } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error(
-        `Config file not found at ${path}\n\n` +
-          `Create it with:\n` +
-          `  mkdir -p "${dirname(path)}"\n` +
-          `  cat > "${path}" << 'EOF'\n` +
-          `  {\n` +
-          `    "engines": {\n` +
-          `      "waifu2x": { "binaryPath": "/path/to/waifu2x-ncnn-vulkan" }\n` +
-          `    }\n` +
-          `  }\n` +
-          `  EOF`,
-      );
+    if (isNotFound(e)) {
+      throw notFoundError([path]);
     }
     throw e;
   }
@@ -56,7 +101,8 @@ export async function loadConfig(configPath?: string): Promise<Config> {
   return validateConfig(parsed);
 }
 
-const ENGINE_NAMES = ["waifu2x"];
+/** Engines Sora knows how to run. */
+export const ENGINE_NAMES: readonly string[] = ["waifu2x"];
 const ENGINE_KEYS = ["binaryPath", "concurrency"];
 
 function isObject(value: unknown): value is Record<string, unknown> {

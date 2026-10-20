@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import process from "node:process";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -133,13 +133,15 @@ test("cli - --dry-run prints the plan without listing engines", async () => {
   }
 });
 
-test("cli - --help shows the default config path", () => {
+test("cli - --help shows the default config paths in the order they are tried", () => {
   const xdg = join(tmpdir(), "sora-xdg");
-  const result = runCli(["--help"], { ...process.env, XDG_CONFIG_HOME: xdg });
+  const home = join(tmpdir(), "sora-home");
+  const result = runCli(["--help"], { ...process.env, XDG_CONFIG_HOME: xdg, HOME: home });
   assert.equal(result.status, 0);
-  const path = join(xdg, "sora", "config.json");
+  const xdgPath = join(xdg, "sora", "config.json");
+  const homePath = join(home, ".config", "sora", "config.json");
   const configLine = result.stdout.split("\n").find((line) => line.includes("--config")) ?? "";
-  assert.ok(configLine.endsWith(`(default: ${path})`), configLine);
+  assert.ok(configLine.endsWith(`(default: ${xdgPath}, else ${homePath})`), configLine);
 });
 
 test("cli - a missing waifu2x binary is reported on one line", async () => {
@@ -155,6 +157,43 @@ test("cli - a missing waifu2x binary is reported on one line", async () => {
       `sora: waifu2x binary not found or not executable: ${binary}. Check binaryPath in ${config}
 `,
     );
+  } finally {
+    await rm(dir, { recursive: true });
+  }
+});
+
+test("cli - falls back to ~/.config when XDG_CONFIG_HOME has no config", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "sora-test-"));
+  try {
+    const home = join(dir, "home");
+    const config = join(home, ".config", "sora", "config.json");
+    const binary = join(dir, "missing-waifu2x");
+    await mkdir(dirname(config), { recursive: true });
+    await writeFile(config, JSON.stringify({ engines: { waifu2x: { binaryPath: binary } } }));
+    const env = { ...process.env, HOME: home, XDG_CONFIG_HOME: join(dir, "xdg") };
+    const result = runCli([join(dir, "in.cbz")], env);
+    assert.equal(result.status, 1);
+    assert.equal(
+      result.stderr.trim(),
+      `sora: waifu2x binary not found or not executable: ${binary}. Check binaryPath in ${config}`,
+    );
+  } finally {
+    await rm(dir, { recursive: true });
+  }
+});
+
+test("cli - an unknown --engine is reported before the config is loaded", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "sora-test-"));
+  try {
+    const result = runCli([
+      join(dir, "in.cbz"),
+      "--config",
+      join(dir, "missing.json"),
+      "-e",
+      "foo",
+    ]);
+    assert.equal(result.status, 1);
+    assert.equal(result.stderr.trim(), 'sora: Unknown engine "foo". Available: waifu2x');
   } finally {
     await rm(dir, { recursive: true });
   }
