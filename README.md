@@ -37,7 +37,7 @@ Or run from source without linking: `npm start -- <input.cbz> [options]`.
 
 ## Configuration
 
-Sora reads `$HOME/.config/sora/config.json` (`%USERPROFILE%\.config\sora\config.json` on Windows if `HOME` is unset), or the file given with `--config`. It must exist.
+Sora reads the file given with `--config`, or by default `$XDG_CONFIG_HOME/sora/config.json`. If `XDG_CONFIG_HOME` is unset, empty or not an absolute path, it reads `$HOME/.config/sora/config.json` instead (`%USERPROFILE%\.config\sora\config.json` on Windows if `HOME` is unset). The file must exist; if it doesn't, the error shows the path Sora looked for.
 
 ```json
 {
@@ -68,7 +68,7 @@ sora <input.cbz> [options]
 | `-s, --scale <2\|4>` | Scale factor | `2` |
 | `-n, --noise <-1..3>` | Denoise level; `-1` disables denoising | `-1` |
 | `-j, --concurrency <N>` | Parallel waifu2x processes | config value, else `1` |
-| `--config <path>` | Config file | `~/.config/sora/config.json` |
+| `--config <path>` | Config file | `$XDG_CONFIG_HOME/sora/config.json`, else `~/.config/sora/config.json` |
 | `--dry-run` | Check the config, binary and input file, print the plan, and exit | |
 | `-h, --help` | Print help | |
 
