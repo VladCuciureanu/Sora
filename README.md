@@ -97,4 +97,4 @@ Tests live in `test/` as `*.test.ts`.
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).
