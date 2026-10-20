@@ -5,10 +5,10 @@ import { basename, dirname, join } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { loadConfig } from "./config.ts";
+import { loadConfig, type Config, type EngineConfig } from "./config.ts";
 import { extractCbz, repackCbz } from "./cbz.ts";
 import { withTempContext } from "./temp.ts";
-import { registerEngine, getEngine, listEngines } from "./engines/engine.ts";
+import type { UpscaleEngine } from "./engines/engine.ts";
 import { createWaifu2xEngine } from "./engines/waifu2x.ts";
 import { createUpscaleMetadata, tagFile } from "./metadata.ts";
 
@@ -125,6 +125,26 @@ export function parseCliArgs(args: string[]): CliArgs | null {
   };
 }
 
+const ENGINES: Record<string, (config: EngineConfig) => UpscaleEngine> = {
+  waifu2x: createWaifu2xEngine,
+};
+
+/**
+ * Create the engine called `name` from its entry in `config`.
+ * `concurrency`, when given, overrides the configured value.
+ */
+export function createEngine(name: string, config: Config, concurrency?: number): UpscaleEngine {
+  const factory = Object.hasOwn(ENGINES, name) ? ENGINES[name] : undefined;
+  if (!factory) {
+    throw new Error(`Unknown engine "${name}". Available: ${Object.keys(ENGINES).join(", ")}`);
+  }
+  const engineConfig = Object.hasOwn(config.engines, name) ? config.engines[name] : undefined;
+  if (!engineConfig) {
+    throw new Error(`Engine "${name}" is not configured. Add it under "engines" in your config file.`);
+  }
+  return factory({ ...engineConfig, concurrency: concurrency ?? engineConfig.concurrency });
+}
+
 async function main(): Promise<void> {
   const args = parseCliArgs(process.argv.slice(2));
   if (args === null) {
@@ -132,29 +152,16 @@ async function main(): Promise<void> {
     return;
   }
 
-  // Load config and register engines
   const config = await loadConfig(args.configPath);
-
-  for (const [name, engineConfig] of Object.entries(config.engines)) {
-    if (name === "waifu2x") {
-      registerEngine(name, () => createWaifu2xEngine({
-        ...engineConfig,
-        concurrency: args.concurrency ?? engineConfig.concurrency,
-      }));
-    }
-  }
-
-  // Get selected engine
-  const engine = getEngine(args.engine);
+  const engine = createEngine(args.engine, config, args.concurrency);
 
   // Check engine availability
   const available = await engine.checkAvailable();
   if (!available) {
-    console.error(
-      `Error: Engine "${args.engine}" binary not found or not executable.\n` +
+    throw new Error(
+      `Engine "${args.engine}" binary not found or not executable.\n` +
         `Check the binaryPath in your config file.`,
     );
-    process.exit(1);
   }
 
   if (args.dryRun) {
@@ -164,7 +171,7 @@ async function main(): Promise<void> {
     console.log(`  Engine: ${args.engine}`);
     console.log(`  Scale:  ${args.scale}x`);
     console.log(`  Noise:  ${args.noise}`);
-    console.log(`  Available engines: ${listEngines().join(", ")}`);
+    console.log(`  Available engines: ${Object.keys(ENGINES).join(", ")}`);
     return;
   }
 
