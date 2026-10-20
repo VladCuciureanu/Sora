@@ -1,4 +1,4 @@
-import { readdir, stat } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import { join, extname, relative } from "node:path";
 import { run } from "./exec.ts";
 
@@ -54,16 +54,8 @@ async function* walkFiles(dir: string): AsyncGenerator<string> {
   }
 }
 
+/** Zip `sourceDir` into `outputPath`. The caller ensures `outputPath` does not exist yet. */
 export async function repackCbz(sourceDir: string, outputPath: string): Promise<void> {
-  try {
-    await stat(outputPath);
-    throw new Error(`Output file already exists: ${outputPath}`);
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== "ENOENT") {
-      throw e;
-    }
-  }
-
   const result = await run("zip", ["-r", outputPath, "."], { cwd: sourceDir });
   if (!result.success) {
     throw new Error(`Failed to create CBZ: ${result.stderr}`);

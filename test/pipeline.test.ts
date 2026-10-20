@@ -98,6 +98,32 @@ test("upscaleCbz - propagates engine failures", async () => {
   }
 });
 
+test("upscaleCbz - refuses an existing output before extracting or upscaling", async () => {
+  const workDir = await makeTempDir();
+  try {
+    const input = join(workDir, "comic");
+    const output = join(workDir, "comic_upscaled.cbz");
+    await writeSampleComic(input);
+    await writeFile(output, "already here");
+    const engine = fakeEngine();
+    let extracted = false;
+    const archive: ArchiveIO = {
+      ...dirArchive,
+      async extract(cbzPath, outputDir) {
+        extracted = true;
+        return dirArchive.extract(cbzPath, outputDir);
+      },
+    };
+
+    await assert.rejects(() => upscaleCbz(makeArgs(input, output), engine, archive), /Output file already exists/);
+    assert.equal(extracted, false);
+    assert.equal(engine.calls.length, 0);
+    assert.equal(await readFile(output, "utf8"), "already here");
+  } finally {
+    await rm(workDir, { recursive: true });
+  }
+});
+
 test("upscaleCbz - real CBZ round trip through zip/unzip", { skip: skipWithoutZip }, async () => {
   const workDir = await makeTempDir();
   try {

@@ -89,19 +89,3 @@ test("extractCbz and repackCbz - round trip", { skip: skipWithoutZip }, async ()
   await rm(workDir, { recursive: true });
 });
 
-test("repackCbz - errors if output file exists", async () => {
-  const dir = await makeTempDir();
-  const sourceDir = join(dir, "source");
-  await mkdir(sourceDir);
-  await writeFile(join(sourceDir, "page.jpg"), "data");
-
-  const outputPath = join(dir, "existing.cbz");
-  await writeFile(outputPath, "already here");
-
-  await assert.rejects(
-    () => repackCbz(sourceDir, outputPath),
-    { name: "Error", message: /already exists/ },
-  );
-
-  await rm(dir, { recursive: true });
-});

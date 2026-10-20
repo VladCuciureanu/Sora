@@ -175,16 +175,17 @@ async function main(): Promise<void> {
     return;
   }
 
-  // Check output doesn't exist (repackCbz also checks, but fail early)
-  try {
-    await stat(args.output);
-    console.error(`Error: Output file already exists: ${args.output}`);
-    process.exit(1);
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
-  }
-
   await upscaleCbz(args, engine);
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw e;
+  }
 }
 
 /** Reads a CBZ into a directory and writes a directory back out as a CBZ. */
@@ -201,6 +202,11 @@ export async function upscaleCbz(
   engine: UpscaleEngine,
   archive: ArchiveIO = zipArchive,
 ): Promise<void> {
+  // Fail before doing any work rather than after upscaling every page.
+  if (await pathExists(args.output)) {
+    throw new Error(`Output file already exists: ${args.output}`);
+  }
+
   console.log(`Upscaling ${args.input}...`);
   console.log(`  Engine: ${args.engine} | Scale: ${args.scale}x | Noise: ${args.noise}`);
 
