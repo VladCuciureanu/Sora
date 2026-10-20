@@ -106,7 +106,16 @@ for (const [args, message] of [
   [["input.cbz", "-x"], /^Unknown option '-x'$/],
   [["input.cbz", "--dry-run=yes"], /^Option '--dry-run' does not take an argument$/],
   [["input.cbz", "-o"], /^Option '-o, --output <value>' argument missing$/],
-  [["input.cbz", "-s", "-2"], /^Option '-s' argument is ambiguous$/],
+  [
+    ["input.cbz", "-s", "-2"],
+    /^option '-s' got '-2', which looks like an option; write --scale=-2$/,
+  ],
+  [
+    ["input.cbz", "--output", "-dash.cbz"],
+    /^option '--output' got '-dash\.cbz', which looks like an option; write --output=-dash\.cbz$/,
+  ],
+  [["input.cbz", "-o", "--dry-run"], /^option '--output' needs a value$/],
+  [["input.cbz", "--scale", "--noise=1"], /^option '--scale' needs a value$/],
   [["input.cbz", "extra.cbz"], /^Unexpected argument: extra\.cbz$/],
 ] as const) {
   test(`parseCliArgs - rejects ${args.slice(1).join(" ")}`, () => {
@@ -118,6 +127,15 @@ for (const [args, message] of [
         return true;
       },
     );
+  });
+}
+
+for (const args of [
+  ["input.cbz", "--output=-dash.cbz"],
+  ["input.cbz", "-o-dash.cbz"],
+]) {
+  test(`parseCliArgs - accepts an output path starting with a dash: ${args[1]}`, () => {
+    assert.equal(parseCliArgs(args).output, "-dash.cbz");
   });
 }
 
