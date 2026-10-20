@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
-import { defaultConfigPath, loadConfig } from "../src/config.ts";
+import { defaultConfigPaths, loadConfig } from "../src/config.ts";
 
 const makeTempDir = () => mkdtemp(join(tmpdir(), "sora-test-"));
 const waifu2xPath = join("usr", "local", "bin", "waifu2x-ncnn-vulkan");
@@ -81,21 +81,21 @@ test("loadConfig - setup instructions name the path that was looked for", async 
   );
 });
 
-test("defaultConfigPath - uses XDG_CONFIG_HOME when it is an absolute path", () => {
+test("defaultConfigPaths - tries XDG_CONFIG_HOME first when it is an absolute path", () => {
   const xdg = resolve("xdg-config");
   const home = resolve("home");
-  assert.equal(
-    defaultConfigPath({ XDG_CONFIG_HOME: xdg, HOME: home }),
+  assert.deepEqual(defaultConfigPaths({ XDG_CONFIG_HOME: xdg, HOME: home }), [
     join(xdg, "sora", "config.json"),
-  );
+    join(home, ".config", "sora", "config.json"),
+  ]);
 });
 
-test("defaultConfigPath - falls back to ~/.config if XDG_CONFIG_HOME is unset, empty or relative", () => {
+test("defaultConfigPaths - only ~/.config if XDG_CONFIG_HOME is unset, empty or relative", () => {
   const home = resolve("home");
-  const fallback = join(home, ".config", "sora", "config.json");
-  assert.equal(defaultConfigPath({ HOME: home }), fallback);
-  assert.equal(defaultConfigPath({ XDG_CONFIG_HOME: "", HOME: home }), fallback);
-  assert.equal(defaultConfigPath({ XDG_CONFIG_HOME: "relative", HOME: home }), fallback);
+  const fallback = [join(home, ".config", "sora", "config.json")];
+  assert.deepEqual(defaultConfigPaths({ HOME: home }), fallback);
+  assert.deepEqual(defaultConfigPaths({ XDG_CONFIG_HOME: "", HOME: home }), fallback);
+  assert.deepEqual(defaultConfigPaths({ XDG_CONFIG_HOME: "relative", HOME: home }), fallback);
 });
 
 async function loadConfigJson(data: unknown) {

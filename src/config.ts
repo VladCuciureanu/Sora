@@ -26,11 +26,6 @@ export function defaultConfigPaths(env: NodeJS.ProcessEnv = process.env): string
   return xdgPath === home ? [home] : [xdgPath, home];
 }
 
-/** The preferred default config file location (the first of `defaultConfigPaths`). */
-export function defaultConfigPath(env: NodeJS.ProcessEnv = process.env): string {
-  return defaultConfigPaths(env)[0];
-}
-
 /** Setup instructions for creating `checked[0]`, naming every path that was checked. */
 function notFoundError(checked: string[]): Error {
   const path = checked[0];
