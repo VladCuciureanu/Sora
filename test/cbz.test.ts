@@ -26,6 +26,28 @@ test("isImageFile - rejects image formats waifu2x cannot read", () => {
   assert.equal(isImageFile("scan.TIFF"), false);
 });
 
+test("isImageFile - ignores macOS AppleDouble files", () => {
+  assert.equal(isImageFile("._page01.jpg"), false);
+  assert.equal(isImageFile(join("__MACOSX", "chapter", "._page01.png")), false);
+});
+
+test("repackCbz - writes a relative output path relative to the caller's cwd", { skip: skipWithoutZip }, async () => {
+  const workDir = await makeTempDir();
+  const sourceDir = join(workDir, "source");
+  await mkdir(sourceDir);
+  await writeFile(join(sourceDir, "page01.png"), "png");
+
+  const cwd = process.cwd();
+  process.chdir(workDir);
+  try {
+    await repackCbz(sourceDir, "out.cbz");
+  } finally {
+    process.chdir(cwd);
+  }
+
+  assert.ok((await stat(join(workDir, "out.cbz"))).isFile());
+});
+
 test("categorizeFiles - separates images from other files", async () => {
   const dir = await makeTempDir();
   await writeFile(join(dir, "page01.jpg"), "img1");

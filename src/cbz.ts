@@ -1,5 +1,5 @@
 import { readdir } from "node:fs/promises";
-import { join, extname, relative } from "node:path";
+import { basename, join, extname, relative, resolve } from "node:path";
 import { run } from "./exec.ts";
 
 // Formats waifu2x-ncnn-vulkan can read. Other images (gif, bmp, tiff, ...)
@@ -12,6 +12,9 @@ export interface CbzContents {
 }
 
 export function isImageFile(path: string): boolean {
+  // macOS AppleDouble files (`._page.jpg`, usually under `__MACOSX/`) are
+  // metadata, not images; waifu2x can't read them.
+  if (basename(path).startsWith("._")) return false;
   return IMAGE_EXTENSIONS.has(extname(path).toLowerCase());
 }
 
@@ -56,7 +59,9 @@ async function* walkFiles(dir: string): AsyncGenerator<string> {
 
 /** Zip `sourceDir` into `outputPath`. The caller ensures `outputPath` does not exist yet. */
 export async function repackCbz(sourceDir: string, outputPath: string): Promise<void> {
-  const result = await run("zip", ["-r", outputPath, "."], { cwd: sourceDir });
+  // zip runs inside sourceDir, so a relative outputPath must be resolved first
+  // or the archive lands in the temp dir and is deleted with it.
+  const result = await run("zip", ["-r", resolve(outputPath), "."], { cwd: sourceDir });
   if (!result.success) {
     throw new Error(`Failed to create CBZ: ${result.stderr}`);
   }
