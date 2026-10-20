@@ -1,6 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { basename, extname, join, relative, resolve } from "node:path";
-import { run } from "./exec.ts";
+import { run as defaultRun, type Runner } from "./exec.ts";
 
 // Formats waifu2x-ncnn-vulkan can read. Other images (gif, bmp, tiff, ...)
 // are treated as ordinary files and copied through unchanged.
@@ -18,7 +18,11 @@ export function isImageFile(path: string): boolean {
   return IMAGE_EXTENSIONS.has(extname(path).toLowerCase());
 }
 
-export async function extractCbz(cbzPath: string, outputDir: string): Promise<CbzContents> {
+export async function extractCbz(
+  cbzPath: string,
+  outputDir: string,
+  { run = defaultRun }: { run?: Runner } = {},
+): Promise<CbzContents> {
   // Extract via the system `unzip` command
   const result = await run("unzip", ["-o", cbzPath, "-d", outputDir]);
   if (!result.success) {
@@ -58,7 +62,11 @@ async function* walkFiles(dir: string): AsyncGenerator<string> {
 }
 
 /** Zip `sourceDir` into `outputPath`. The caller ensures `outputPath` does not exist yet. */
-export async function repackCbz(sourceDir: string, outputPath: string): Promise<void> {
+export async function repackCbz(
+  sourceDir: string,
+  outputPath: string,
+  { run = defaultRun }: { run?: Runner } = {},
+): Promise<void> {
   // zip runs inside sourceDir, so a relative outputPath must be resolved first
   // or the archive lands in the temp dir and is deleted with it.
   const result = await run("zip", ["-r", resolve(outputPath), "."], { cwd: sourceDir });

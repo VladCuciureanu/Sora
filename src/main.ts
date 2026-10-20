@@ -3,12 +3,12 @@ import { copyFile, mkdir, stat } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import process from "node:process";
 import { parseArgs } from "node:util";
-import { type CbzContents, extractCbz, repackCbz } from "./cbz.ts";
-import { type Config, type EngineConfig, loadConfig } from "./config.ts";
-import type { UpscaleEngine } from "./engines/engine.ts";
-import { createWaifu2xEngine } from "./engines/waifu2x.ts";
+import { extractCbz, repackCbz } from "./cbz.ts";
+import { type EngineConfig, loadConfig } from "./config.ts";
+import type { Runner } from "./exec.ts";
 import { createUpscaleMetadata, writeUpscaleMetadata } from "./metadata.ts";
 import { withTempContext } from "./temp.ts";
+import { isWaifu2xAvailable, upscaleImages } from "./waifu2x.ts";
 
 const HELP = `Sora — Upscale CBZ comic book archives
 
@@ -120,28 +120,6 @@ export function parseCliArgs(args: string[]): CliArgs | null {
   };
 }
 
-const ENGINES: Record<string, (config: EngineConfig) => UpscaleEngine> = {
-  waifu2x: createWaifu2xEngine,
-};
-
-/**
- * Create the engine called `name` from its entry in `config`.
- * `concurrency`, when given, overrides the configured value.
- */
-export function createEngine(name: string, config: Config, concurrency?: number): UpscaleEngine {
-  const factory = Object.hasOwn(ENGINES, name) ? ENGINES[name] : undefined;
-  if (!factory) {
-    throw new Error(`Unknown engine "${name}". Available: ${Object.keys(ENGINES).join(", ")}`);
-  }
-  const engineConfig = Object.hasOwn(config.engines, name) ? config.engines[name] : undefined;
-  if (!engineConfig) {
-    throw new Error(
-      `Engine "${name}" is not configured. Add it under "engines" in your config file.`,
-    );
-  }
-  return factory({ ...engineConfig, concurrency: concurrency ?? engineConfig.concurrency });
-}
-
 async function main(): Promise<void> {
   const args = parseCliArgs(process.argv.slice(2));
   if (args === null) {
@@ -150,11 +128,17 @@ async function main(): Promise<void> {
   }
 
   const config = await loadConfig(args.configPath);
-  const engine = createEngine(args.engine, config, args.concurrency);
+  if (args.engine !== "waifu2x") {
+    throw new Error(`Unknown engine "${args.engine}". Available: waifu2x`);
+  }
+  const engine = config.engines.waifu2x;
+  if (!engine) {
+    throw new Error(
+      `Engine "${args.engine}" is not configured. Add it under "engines" in your config file.`,
+    );
+  }
 
-  // Check engine availability
-  const available = await engine.checkAvailable();
-  if (!available) {
+  if (!(await isWaifu2xAvailable(engine.binaryPath))) {
     throw new Error(
       `Engine "${args.engine}" binary not found or not executable.\n` +
         `Check the binaryPath in your config file.`,
@@ -168,7 +152,7 @@ async function main(): Promise<void> {
     console.log(`  Engine: ${args.engine}`);
     console.log(`  Scale:  ${args.scale}x`);
     console.log(`  Noise:  ${args.noise}`);
-    console.log(`  Available engines: ${Object.keys(ENGINES).join(", ")}`);
+    console.log(`  Available engines: waifu2x`);
     return;
   }
 
@@ -185,20 +169,19 @@ async function pathExists(path: string): Promise<boolean> {
   }
 }
 
-/** Reads a CBZ into a directory and writes a directory back out as a CBZ. */
-export interface ArchiveIO {
-  extract(cbzPath: string, outputDir: string): Promise<CbzContents>;
-  repack(sourceDir: string, outputPath: string): Promise<void>;
-}
-
-const zipArchive: ArchiveIO = { extract: extractCbz, repack: repackCbz };
-
-/** Extract `args.input`, upscale its images with `engine`, and repack to `args.output`. */
+/**
+ * Extract `args.input`, upscale its images with the waifu2x binary in `engine`,
+ * and repack to `args.output`. `args.concurrency` overrides `engine.concurrency`.
+ */
 export async function upscaleCbz(
   args: CliArgs,
-  engine: UpscaleEngine,
-  archive: ArchiveIO = zipArchive,
+  engine: EngineConfig,
+  options: {
+    /** Runs unzip, waifu2x and zip; tests substitute a fake. */
+    run?: Runner;
+  } = {},
 ): Promise<void> {
+  const { run } = options;
   // Fail before doing any work rather than after upscaling every page.
   if (await pathExists(args.output)) {
     throw new Error(`Output file already exists: ${args.output}`);
@@ -210,16 +193,19 @@ export async function upscaleCbz(
   await withTempContext(async (ctx) => {
     // Extract
     console.log("Extracting CBZ...");
-    const contents = await archive.extract(args.input, ctx.inputDir);
+    const contents = await extractCbz(args.input, ctx.inputDir, { run });
     console.log(
       `  Found ${contents.imageFiles.length} images, ${contents.otherFiles.length} other files`,
     );
 
     // Upscale images
     console.log("Upscaling images...");
-    await engine.upscale(ctx.inputDir, ctx.outputDir, {
+    await upscaleImages(ctx.inputDir, ctx.outputDir, {
+      binaryPath: engine.binaryPath,
       scale: args.scale,
       noise: args.noise,
+      concurrency: args.concurrency ?? engine.concurrency,
+      run,
     });
 
     // Copy non-image files unchanged, then record how the archive was upscaled
@@ -236,7 +222,7 @@ export async function upscaleCbz(
 
     // Repack
     console.log("Repacking CBZ...");
-    await archive.repack(ctx.outputDir, args.output);
+    await repackCbz(ctx.outputDir, args.output, { run });
   });
 
   console.log(`Done! Output: ${args.output}`);

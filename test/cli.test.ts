@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import process from "node:process";
@@ -44,4 +44,35 @@ test("cli - invalid option value prints the error only, exits 1", () => {
   const result = runCli(["in.cbz", "-s", "3"]);
   assert.equal(result.status, 1);
   assert.equal(result.stderr.trim(), "Error: --scale must be 2 or 4");
+});
+
+test("cli - rejects an unknown engine name even if configured", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "sora-test-"));
+  try {
+    const config = join(dir, "config.json");
+    await writeFile(
+      config,
+      JSON.stringify({
+        engines: { waifu2x: { binaryPath: "waifu2x" }, realesrgan: { binaryPath: "realesrgan" } },
+      }),
+    );
+    const result = runCli([join(dir, "in.cbz"), "--config", config, "-e", "realesrgan"]);
+    assert.equal(result.status, 1);
+    assert.equal(result.stderr.trim(), 'Error: Unknown engine "realesrgan". Available: waifu2x');
+  } finally {
+    await rm(dir, { recursive: true });
+  }
+});
+
+test("cli - rejects waifu2x when it is missing from the config", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "sora-test-"));
+  try {
+    const config = join(dir, "config.json");
+    await writeFile(config, JSON.stringify({ engines: {} }));
+    const result = runCli([join(dir, "in.cbz"), "--config", config]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /^Error: Engine "waifu2x" is not configured/);
+  } finally {
+    await rm(dir, { recursive: true });
+  }
 });

@@ -1,54 +1,51 @@
 import assert from "node:assert/strict";
 import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, relative } from "node:path";
+import { join, relative } from "node:path";
 import { test } from "node:test";
-import { categorizeFiles } from "../src/cbz.ts";
-import type { UpscaleEngine, UpscaleOpts } from "../src/engines/engine.ts";
-import { run } from "../src/exec.ts";
-import { type ArchiveIO, type CliArgs, upscaleCbz } from "../src/main.ts";
+import { type Runner, run } from "../src/exec.ts";
+import { type CliArgs, upscaleCbz } from "../src/main.ts";
 import { METADATA_FILENAME } from "../src/metadata.ts";
 import { skipWithoutZip } from "./support/tools.ts";
 
 const makeTempDir = () => mkdtemp(join(tmpdir(), "sora-test-"));
+const engine = { binaryPath: "waifu2x" };
 
-/** Archive stand-in that treats a "CBZ" as a plain directory, so no zip/unzip is needed. */
-const dirArchive: ArchiveIO = {
-  async extract(cbzPath, outputDir) {
-    await cp(cbzPath, outputDir, { recursive: true });
-    return categorizeFiles(outputDir);
-  },
-  async repack(sourceDir, outputPath) {
-    await cp(sourceDir, outputPath, { recursive: true });
-  },
-};
+/**
+ * Fake for `run`. Unless `realZip` is set, unzip and zip copy directories, so a
+ * "CBZ" is a plain directory and no zip/unzip is needed. waifu2x writes
+ * `upscaled:<scale>:<original>`, or fails with `waifu2xError` when given.
+ */
+function fakeRun(options: { realZip?: boolean; waifu2xError?: string } = {}) {
+  const commands: string[] = [];
+  /** Images passed to waifu2x, relative to the extraction directory, and the rest of its args. */
+  const waifu2xCalls: { file: string; args: string[] }[] = [];
+  let extractDir = "";
 
-/** Fake engine: writes `upscaled:<scale>:<original>` for every image it is given. */
-function fakeEngine(): UpscaleEngine & { calls: { files: string[]; opts: UpscaleOpts }[] } {
-  const calls: { files: string[]; opts: UpscaleOpts }[] = [];
-  return {
-    name: "fake",
-    calls,
-    async checkAvailable() {
-      return true;
-    },
-    async upscale(inputDir, outputDir, opts) {
-      const { imageFiles } = await categorizeFiles(inputDir);
-      calls.push({ files: imageFiles, opts });
-      for (const file of imageFiles) {
-        const out = join(outputDir, file);
-        await mkdir(dirname(out), { recursive: true });
-        await writeFile(
-          out,
-          `upscaled:${opts.scale}:${await readFile(join(inputDir, file), "utf8")}`,
-        );
-      }
-    },
+  const fake: Runner = async (command, args, runOptions = {}) => {
+    commands.push(command);
+    if (command === "unzip") {
+      extractDir = args[args.indexOf("-d") + 1];
+      if (options.realZip) return run(command, args, runOptions);
+      await cp(args[1], extractDir, { recursive: true });
+    } else if (command === "zip") {
+      if (options.realZip) return run(command, args, runOptions);
+      await cp(runOptions.cwd ?? ".", args[1], { recursive: true });
+    } else {
+      const input = args[args.indexOf("-i") + 1];
+      const output = args[args.indexOf("-o") + 1];
+      waifu2xCalls.push({ file: relative(extractDir, input), args: args.slice(4) });
+      if (options.waifu2xError) return { success: false, stderr: options.waifu2xError };
+      const scale = args[args.indexOf("-s") + 1];
+      await writeFile(output, `upscaled:${scale}:${await readFile(input, "utf8")}`);
+    }
+    return { success: true, stderr: "" };
   };
+  return { run: fake, commands, waifu2xCalls };
 }
 
 function makeArgs(input: string, output: string): CliArgs {
-  return { input, output, engine: "fake", scale: 4, noise: 1, dryRun: false };
+  return { input, output, engine: "waifu2x", scale: 4, noise: 1, dryRun: false };
 }
 
 const COMIC_INFO = `<?xml version="1.0"?>
@@ -80,13 +77,17 @@ test("upscaleCbz - upscales images, copies other files, and repacks", async () =
     const input = join(workDir, "comic");
     const output = join(workDir, "comic_upscaled");
     await writeSampleComic(input);
-    const engine = fakeEngine();
+    const fake = fakeRun();
 
-    await upscaleCbz(makeArgs(input, output), engine, dirArchive);
+    await upscaleCbz(makeArgs(input, output), engine, { run: fake.run });
 
-    assert.equal(engine.calls.length, 1);
-    assert.deepEqual(engine.calls[0].opts, { scale: 4, noise: 1 });
-    assert.deepEqual(engine.calls[0].files, [join("chapter1", "page01.png"), "cover.jpg"]);
+    assert.deepEqual(
+      fake.waifu2xCalls.map((c) => c.file),
+      [join("chapter1", "page01.png"), "cover.jpg"],
+    );
+    for (const call of fake.waifu2xCalls) {
+      assert.deepEqual(call.args, ["-s", "4", "-n", "1"]);
+    }
     assert.equal(await readFile(join(output, "cover.jpg"), "utf8"), "upscaled:4:cover");
     assert.equal(
       await readFile(join(output, "chapter1", "page01.png"), "utf8"),
@@ -106,7 +107,7 @@ test("upscaleCbz - writes one sora.upscale.json at the root and leaves ComicInfo
     await writeSampleComic(input);
     await writeFile(join(input, "chapter1", "notes.txt"), "nested");
 
-    await upscaleCbz(makeArgs(input, output), fakeEngine(), dirArchive);
+    await upscaleCbz(makeArgs(input, output), engine, { run: fakeRun().run });
 
     assert.deepEqual(await listFiles(output), [
       "ComicInfo.xml",
@@ -119,7 +120,7 @@ test("upscaleCbz - writes one sora.upscale.json at the root and leaves ComicInfo
     assert.equal(await readFile(join(output, "ComicInfo.xml"), "utf8"), COMIC_INFO);
     assert.equal(await readFile(join(output, "chapter1", "notes.txt"), "utf8"), "nested");
     const meta = JSON.parse(await readFile(join(output, METADATA_FILENAME), "utf8"));
-    assert.equal(meta.engine, "fake");
+    assert.equal(meta.engine, "waifu2x");
     assert.equal(meta.scale, 4);
     assert.equal(meta.noise, 1);
     assert.ok(!Number.isNaN(Date.parse(meta.timestamp)));
@@ -136,11 +137,14 @@ test("upscaleCbz - copies images the engine cannot read through unchanged", asyn
     await writeSampleComic(input);
     await writeFile(join(input, "chapter1", "page02.gif"), "gif-page");
     await writeFile(join(input, "back.bmp"), "bmp-page");
-    const engine = fakeEngine();
+    const fake = fakeRun();
 
-    await upscaleCbz(makeArgs(input, output), engine, dirArchive);
+    await upscaleCbz(makeArgs(input, output), engine, { run: fake.run });
 
-    assert.deepEqual(engine.calls[0].files, [join("chapter1", "page01.png"), "cover.jpg"]);
+    assert.deepEqual(
+      fake.waifu2xCalls.map((c) => c.file),
+      [join("chapter1", "page01.png"), "cover.jpg"],
+    );
     assert.equal(await readFile(join(output, "chapter1", "page02.gif"), "utf8"), "gif-page");
     assert.equal(await readFile(join(output, "back.bmp"), "utf8"), "bmp-page");
     assert.equal(await readFile(join(output, "cover.jpg"), "utf8"), "upscaled:4:cover");
@@ -155,18 +159,10 @@ test("upscaleCbz - propagates engine failures", async () => {
     const input = join(workDir, "comic");
     const output = join(workDir, "comic_upscaled");
     await writeSampleComic(input);
-    const engine: UpscaleEngine = {
-      name: "broken",
-      async checkAvailable() {
-        return true;
-      },
-      async upscale() {
-        throw new Error("engine exploded");
-      },
-    };
+    const fake = fakeRun({ waifu2xError: "engine exploded" });
 
     await assert.rejects(
-      () => upscaleCbz(makeArgs(input, output), engine, dirArchive),
+      () => upscaleCbz(makeArgs(input, output), engine, { run: fake.run }),
       /engine exploded/,
     );
     await assert.rejects(() => readdir(output), { code: "ENOENT" });
@@ -182,22 +178,13 @@ test("upscaleCbz - refuses an existing output before extracting or upscaling", a
     const output = join(workDir, "comic_upscaled.cbz");
     await writeSampleComic(input);
     await writeFile(output, "already here");
-    const engine = fakeEngine();
-    let extracted = false;
-    const archive: ArchiveIO = {
-      ...dirArchive,
-      async extract(cbzPath, outputDir) {
-        extracted = true;
-        return dirArchive.extract(cbzPath, outputDir);
-      },
-    };
+    const fake = fakeRun();
 
     await assert.rejects(
-      () => upscaleCbz(makeArgs(input, output), engine, archive),
+      () => upscaleCbz(makeArgs(input, output), engine, { run: fake.run }),
       /Output file already exists/,
     );
-    assert.equal(extracted, false);
-    assert.equal(engine.calls.length, 0);
+    assert.deepEqual(fake.commands, []);
     assert.equal(await readFile(output, "utf8"), "already here");
   } finally {
     await rm(workDir, { recursive: true });
@@ -215,7 +202,7 @@ test("upscaleCbz - real CBZ round trip through zip/unzip", { skip: skipWithoutZi
     const zipped = await run("zip", ["-r", input, "."], { cwd: source });
     assert.ok(zipped.success, zipped.stderr);
 
-    await upscaleCbz(makeArgs(input, output), fakeEngine());
+    await upscaleCbz(makeArgs(input, output), engine, { run: fakeRun({ realZip: true }).run });
 
     await mkdir(check);
     const unzipped = await run("unzip", [output, "-d", check]);
@@ -227,7 +214,10 @@ test("upscaleCbz - real CBZ round trip through zip/unzip", { skip: skipWithoutZi
     );
     assert.equal(await readFile(join(check, "readme.txt"), "utf8"), "hello");
     assert.equal(await readFile(join(check, "ComicInfo.xml"), "utf8"), COMIC_INFO);
-    assert.equal(JSON.parse(await readFile(join(check, METADATA_FILENAME), "utf8")).engine, "fake");
+    assert.equal(
+      JSON.parse(await readFile(join(check, METADATA_FILENAME), "utf8")).engine,
+      "waifu2x",
+    );
   } finally {
     await rm(workDir, { recursive: true });
   }
