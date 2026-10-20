@@ -13,7 +13,7 @@ A CLI that shoves your CBZ archives through AI upscaling engines and spits out f
 
 ## Install
 
-Requires [Node.js](https://nodejs.org) 24 or newer, plus `zip` and `unzip` on your `PATH`.
+Requires [Node.js](https://nodejs.org) 26 or newer, plus `zip` and `unzip` on your `PATH`.
 
 ```sh
 npm install

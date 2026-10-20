@@ -1,9 +1,7 @@
 #!/usr/bin/env node
 import { copyFile, mkdir, stat } from "node:fs/promises";
-import { realpathSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { loadConfig, type Config, type EngineConfig } from "./config.ts";
 import { extractCbz, repackCbz, type CbzContents } from "./cbz.ts";
@@ -243,17 +241,7 @@ export async function upscaleCbz(
   console.log(`Done! Output: ${args.output}`);
 }
 
-// Run main() only when executed directly (import.meta.main is not in all Node 24 releases).
-function isMainModule(): boolean {
-  if (!process.argv[1]) return false;
-  try {
-    return realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
-  } catch {
-    return false;
-  }
-}
-
-if (isMainModule()) {
+if (import.meta.main) {
   main().catch((err: unknown) => {
     console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
     if (err instanceof UsageError && err.showHelp) {
