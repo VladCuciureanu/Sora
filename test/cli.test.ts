@@ -46,16 +46,11 @@ test("cli - invalid option value prints the error only, exits 1", () => {
   assert.equal(result.stderr.trim(), "sora: --scale must be 2 or 4");
 });
 
-test("cli - rejects an unknown engine name even if configured", async () => {
+test("cli - rejects an unknown --engine name", async () => {
   const dir = await mkdtemp(join(tmpdir(), "sora-test-"));
   try {
     const config = join(dir, "config.json");
-    await writeFile(
-      config,
-      JSON.stringify({
-        engines: { waifu2x: { binaryPath: "waifu2x" }, realesrgan: { binaryPath: "realesrgan" } },
-      }),
-    );
+    await writeFile(config, JSON.stringify({ engines: { waifu2x: { binaryPath: "waifu2x" } } }));
     const result = runCli([join(dir, "in.cbz"), "--config", config, "-e", "realesrgan"]);
     assert.equal(result.status, 1);
     assert.equal(result.stderr.trim(), 'sora: Unknown engine "realesrgan". Available: waifu2x');

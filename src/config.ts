@@ -56,24 +56,48 @@ export async function loadConfig(configPath?: string): Promise<Config> {
   return validateConfig(parsed);
 }
 
+const ENGINE_NAMES = ["waifu2x"];
+const ENGINE_KEYS = ["binaryPath", "concurrency"];
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function validateConfig(data: unknown): Config {
-  if (typeof data !== "object" || data === null) {
+  if (!isObject(data)) {
     throw new Error("Config must be a JSON object");
   }
-
-  const obj = data as Record<string, unknown>;
-  if (typeof obj.engines !== "object" || obj.engines === null) {
+  if (!isObject(data.engines)) {
     throw new Error('Config must have an "engines" object');
   }
+  for (const key of Object.keys(data)) {
+    if (key !== "engines") {
+      throw new Error(`Unknown config key "${key}"`);
+    }
+  }
 
-  const engines = obj.engines as Record<string, unknown>;
+  const engines = data.engines;
   for (const [name, engine] of Object.entries(engines)) {
-    if (typeof engine !== "object" || engine === null) {
+    if (!ENGINE_NAMES.includes(name)) {
+      throw new Error(`Unknown engine "${name}" in config. Available: ${ENGINE_NAMES.join(", ")}`);
+    }
+    if (!isObject(engine)) {
       throw new Error(`Engine "${name}" must be an object`);
     }
-    const eng = engine as Record<string, unknown>;
-    if (typeof eng.binaryPath !== "string" || eng.binaryPath.length === 0) {
+    for (const key of Object.keys(engine)) {
+      if (!ENGINE_KEYS.includes(key)) {
+        throw new Error(`Engine "${name}": unknown key "${key}"`);
+      }
+    }
+    if (typeof engine.binaryPath !== "string" || engine.binaryPath.length === 0) {
       throw new Error(`Engine "${name}" must have a non-empty "binaryPath" string`);
+    }
+    const { concurrency } = engine;
+    if (
+      concurrency !== undefined &&
+      !(typeof concurrency === "number" && Number.isInteger(concurrency) && concurrency > 0)
+    ) {
+      throw new Error(`Engine "${name}": "concurrency" must be a positive integer`);
     }
   }
 

@@ -53,7 +53,9 @@ Sora reads the file given with `--config`, or by default `$XDG_CONFIG_HOME/sora/
 | Key | Required | Description |
 |-----|----------|-------------|
 | `engines.waifu2x.binaryPath` | yes | Path to the waifu2x-ncnn-vulkan binary |
-| `engines.waifu2x.concurrency` | no | Number of waifu2x processes to run at once (default `1`); `-j` overrides it |
+| `engines.waifu2x.concurrency` | no | Number of waifu2x processes to run at once, a positive integer (default `1`); `-j` overrides it |
+
+Any other key, or an engine other than `waifu2x`, is an error.
 
 ## Usage
 
