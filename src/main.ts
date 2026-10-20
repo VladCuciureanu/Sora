@@ -230,7 +230,7 @@ export async function upscaleCbz(
 
 if (import.meta.main) {
   main().catch((err: unknown) => {
-    console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+    console.error(`sora: ${err instanceof Error ? err.message : String(err)}`);
     if (err instanceof UsageError && err.showHelp) {
       console.error(`\n${HELP}`);
     }

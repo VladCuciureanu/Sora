@@ -18,7 +18,7 @@ test("cli - runtime errors print a message without a stack trace and exit 1", as
   try {
     const result = runCli([join(dir, "in.cbz"), "--config", join(dir, "missing.json")]);
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /^Error: Config file not found/);
+    assert.match(result.stderr, /^sora: Config file not found/);
     assert.doesNotMatch(result.stderr, /^\s+at /m);
   } finally {
     await rm(dir, { recursive: true });
@@ -35,7 +35,7 @@ test("cli - --help prints usage to stdout and exits 0", () => {
 test("cli - missing input prints the error and usage, exits 1", () => {
   const result = runCli([]);
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /^Error: input CBZ file is required/);
+  assert.match(result.stderr, /^sora: input CBZ file is required/);
   assert.match(result.stderr, /^Usage: sora/m);
   assert.doesNotMatch(result.stderr, /^\s+at /m);
 });
@@ -43,7 +43,7 @@ test("cli - missing input prints the error and usage, exits 1", () => {
 test("cli - invalid option value prints the error only, exits 1", () => {
   const result = runCli(["in.cbz", "-s", "3"]);
   assert.equal(result.status, 1);
-  assert.equal(result.stderr.trim(), "Error: --scale must be 2 or 4");
+  assert.equal(result.stderr.trim(), "sora: --scale must be 2 or 4");
 });
 
 test("cli - rejects an unknown engine name even if configured", async () => {
@@ -58,7 +58,7 @@ test("cli - rejects an unknown engine name even if configured", async () => {
     );
     const result = runCli([join(dir, "in.cbz"), "--config", config, "-e", "realesrgan"]);
     assert.equal(result.status, 1);
-    assert.equal(result.stderr.trim(), 'Error: Unknown engine "realesrgan". Available: waifu2x');
+    assert.equal(result.stderr.trim(), 'sora: Unknown engine "realesrgan". Available: waifu2x');
   } finally {
     await rm(dir, { recursive: true });
   }
@@ -71,7 +71,7 @@ test("cli - rejects waifu2x when it is missing from the config", async () => {
     await writeFile(config, JSON.stringify({ engines: {} }));
     const result = runCli([join(dir, "in.cbz"), "--config", config]);
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /^Error: Engine "waifu2x" is not configured/);
+    assert.match(result.stderr, /^sora: Engine "waifu2x" is not configured/);
   } finally {
     await rm(dir, { recursive: true });
   }
