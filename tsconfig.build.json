@@ -3,7 +3,8 @@
   "compilerOptions": {
     "noEmit": false,
     "rootDir": "src",
-    "outDir": "dist"
+    "outDir": "dist",
+    "newLine": "lf"
   },
   "include": ["src"]
 }

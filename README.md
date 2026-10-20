@@ -85,8 +85,13 @@ sora manga-vol1.cbz --dry-run
 npm run dev        # run src/main.ts with --watch
 npm test           # node --test; zip/unzip tests skip if the tools are missing
 npm run typecheck  # tsc
+npm run lint       # biome lint
+npm run format     # biome check --write (format, sort imports, safe fixes)
+npm run check      # biome check, typecheck and tests (what CI runs)
 npm run build      # compile to dist/
 ```
+
+Tests live in `test/` as `*.test.ts`.
 
 ## License
 
