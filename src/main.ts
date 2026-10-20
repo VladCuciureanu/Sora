@@ -101,7 +101,7 @@ export function parseCliArgs(args: string[]): CliArgs | null {
     throw new UsageError("--noise must be -1, 0, 1, 2, or 3");
   }
 
-  const defaultOutput = join(dirname(input), basename(input, ".cbz") + "_upscaled.cbz");
+  const defaultOutput = join(dirname(input), `${basename(input, ".cbz")}_upscaled.cbz`);
 
   const concurrency = parsed.concurrency != null ? Number(parsed.concurrency) : undefined;
   if (concurrency != null && (!Number.isInteger(concurrency) || concurrency < 1)) {
