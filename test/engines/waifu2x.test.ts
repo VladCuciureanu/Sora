@@ -1,9 +1,9 @@
-import { test } from "node:test";
 import assert from "node:assert/strict";
 import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import process from "node:process";
+import { test } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 import {
   buildWaifu2xArgs,
@@ -81,7 +81,9 @@ test("waifu2x upscale - processes nested images and preserves relative paths", a
 /** Collect unhandledRejection events emitted while `fn` runs (plus a grace period). */
 async function captureUnhandledRejections(fn: () => Promise<void>): Promise<unknown[]> {
   const seen: unknown[] = [];
-  const listener = (reason: unknown) => { seen.push(reason); };
+  const listener = (reason: unknown) => {
+    seen.push(reason);
+  };
   process.on("unhandledRejection", listener);
   try {
     await fn();

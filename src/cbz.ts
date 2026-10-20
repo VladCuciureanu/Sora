@@ -1,5 +1,5 @@
 import { readdir } from "node:fs/promises";
-import { basename, join, extname, relative, resolve } from "node:path";
+import { basename, extname, join, relative, resolve } from "node:path";
 import { run } from "./exec.ts";
 
 // Formats waifu2x-ncnn-vulkan can read. Other images (gif, bmp, tiff, ...)

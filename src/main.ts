@@ -3,12 +3,12 @@ import { copyFile, mkdir, stat } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import process from "node:process";
 import { parseArgs } from "node:util";
-import { loadConfig, type Config, type EngineConfig } from "./config.ts";
-import { extractCbz, repackCbz, type CbzContents } from "./cbz.ts";
-import { withTempContext } from "./temp.ts";
+import { type CbzContents, extractCbz, repackCbz } from "./cbz.ts";
+import { type Config, type EngineConfig, loadConfig } from "./config.ts";
 import type { UpscaleEngine } from "./engines/engine.ts";
 import { createWaifu2xEngine } from "./engines/waifu2x.ts";
 import { createUpscaleMetadata, writeUpscaleMetadata } from "./metadata.ts";
+import { withTempContext } from "./temp.ts";
 
 const HELP = `Sora — Upscale CBZ comic book archives
 
@@ -101,10 +101,7 @@ export function parseCliArgs(args: string[]): CliArgs | null {
     throw new UsageError("--noise must be -1, 0, 1, 2, or 3");
   }
 
-  const defaultOutput = join(
-    dirname(input),
-    basename(input, ".cbz") + "_upscaled.cbz",
-  );
+  const defaultOutput = join(dirname(input), `${basename(input, ".cbz")}_upscaled.cbz`);
 
   const concurrency = parsed.concurrency != null ? Number(parsed.concurrency) : undefined;
   if (concurrency != null && (!Number.isInteger(concurrency) || concurrency < 1)) {
@@ -138,7 +135,9 @@ export function createEngine(name: string, config: Config, concurrency?: number)
   }
   const engineConfig = Object.hasOwn(config.engines, name) ? config.engines[name] : undefined;
   if (!engineConfig) {
-    throw new Error(`Engine "${name}" is not configured. Add it under "engines" in your config file.`);
+    throw new Error(
+      `Engine "${name}" is not configured. Add it under "engines" in your config file.`,
+    );
   }
   return factory({ ...engineConfig, concurrency: concurrency ?? engineConfig.concurrency });
 }
@@ -212,7 +211,9 @@ export async function upscaleCbz(
     // Extract
     console.log("Extracting CBZ...");
     const contents = await archive.extract(args.input, ctx.inputDir);
-    console.log(`  Found ${contents.imageFiles.length} images, ${contents.otherFiles.length} other files`);
+    console.log(
+      `  Found ${contents.imageFiles.length} images, ${contents.otherFiles.length} other files`,
+    );
 
     // Upscale images
     console.log("Upscaling images...");

@@ -1,13 +1,13 @@
-import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
+import { test } from "node:test";
 import { categorizeFiles } from "../src/cbz.ts";
 import type { UpscaleEngine, UpscaleOpts } from "../src/engines/engine.ts";
 import { run } from "../src/exec.ts";
+import { type ArchiveIO, type CliArgs, upscaleCbz } from "../src/main.ts";
 import { METADATA_FILENAME } from "../src/metadata.ts";
-import { upscaleCbz, type ArchiveIO, type CliArgs } from "../src/main.ts";
 import { skipWithoutZip } from "./support/tools.ts";
 
 const makeTempDir = () => mkdtemp(join(tmpdir(), "sora-test-"));
@@ -38,7 +38,10 @@ function fakeEngine(): UpscaleEngine & { calls: { files: string[]; opts: Upscale
       for (const file of imageFiles) {
         const out = join(outputDir, file);
         await mkdir(dirname(out), { recursive: true });
-        await writeFile(out, `upscaled:${opts.scale}:${await readFile(join(inputDir, file), "utf8")}`);
+        await writeFile(
+          out,
+          `upscaled:${opts.scale}:${await readFile(join(inputDir, file), "utf8")}`,
+        );
       }
     },
   };
@@ -85,7 +88,10 @@ test("upscaleCbz - upscales images, copies other files, and repacks", async () =
     assert.deepEqual(engine.calls[0].opts, { scale: 4, noise: 1 });
     assert.deepEqual(engine.calls[0].files, [join("chapter1", "page01.png"), "cover.jpg"]);
     assert.equal(await readFile(join(output, "cover.jpg"), "utf8"), "upscaled:4:cover");
-    assert.equal(await readFile(join(output, "chapter1", "page01.png"), "utf8"), "upscaled:4:page01");
+    assert.equal(
+      await readFile(join(output, "chapter1", "page01.png"), "utf8"),
+      "upscaled:4:page01",
+    );
     assert.equal(await readFile(join(output, "readme.txt"), "utf8"), "hello");
   } finally {
     await rm(workDir, { recursive: true });
@@ -159,7 +165,10 @@ test("upscaleCbz - propagates engine failures", async () => {
       },
     };
 
-    await assert.rejects(() => upscaleCbz(makeArgs(input, output), engine, dirArchive), /engine exploded/);
+    await assert.rejects(
+      () => upscaleCbz(makeArgs(input, output), engine, dirArchive),
+      /engine exploded/,
+    );
     await assert.rejects(() => readdir(output), { code: "ENOENT" });
   } finally {
     await rm(workDir, { recursive: true });
@@ -183,7 +192,10 @@ test("upscaleCbz - refuses an existing output before extracting or upscaling", a
       },
     };
 
-    await assert.rejects(() => upscaleCbz(makeArgs(input, output), engine, archive), /Output file already exists/);
+    await assert.rejects(
+      () => upscaleCbz(makeArgs(input, output), engine, archive),
+      /Output file already exists/,
+    );
     assert.equal(extracted, false);
     assert.equal(engine.calls.length, 0);
     assert.equal(await readFile(output, "utf8"), "already here");
@@ -209,7 +221,10 @@ test("upscaleCbz - real CBZ round trip through zip/unzip", { skip: skipWithoutZi
     const unzipped = await run("unzip", [output, "-d", check]);
     assert.ok(unzipped.success, unzipped.stderr);
     assert.equal(await readFile(join(check, "cover.jpg"), "utf8"), "upscaled:4:cover");
-    assert.equal(await readFile(join(check, "chapter1", "page01.png"), "utf8"), "upscaled:4:page01");
+    assert.equal(
+      await readFile(join(check, "chapter1", "page01.png"), "utf8"),
+      "upscaled:4:page01",
+    );
     assert.equal(await readFile(join(check, "readme.txt"), "utf8"), "hello");
     assert.equal(await readFile(join(check, "ComicInfo.xml"), "utf8"), COMIC_INFO);
     assert.equal(JSON.parse(await readFile(join(check, METADATA_FILENAME), "utf8")).engine, "fake");

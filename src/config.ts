@@ -12,12 +12,7 @@ export interface Config {
 }
 
 function getDefaultConfigPath(): string {
-  return join(
-    process.env.HOME ?? process.env.USERPROFILE ?? ".",
-    ".config",
-    "sora",
-    "config.json",
-  );
+  return join(process.env.HOME ?? process.env.USERPROFILE ?? ".", ".config", "sora", "config.json");
 }
 
 export async function loadConfig(configPath?: string): Promise<Config> {

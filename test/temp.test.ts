@@ -1,6 +1,6 @@
-import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stat, writeFile } from "node:fs/promises";
+import { test } from "node:test";
 import { createTempContext, withTempContext } from "../src/temp.ts";
 
 test("createTempContext - creates two temp dirs", async () => {
@@ -42,12 +42,15 @@ test("withTempContext - cleans up after success", async () => {
 
 test("withTempContext - cleans up after error", async () => {
   let savedInputDir = "";
-  await assert.rejects(async () => {
-    await withTempContext(async (ctx) => {
-      savedInputDir = ctx.inputDir;
-      throw new Error("boom");
-    });
-  }, { name: "Error", message: /boom/ });
+  await assert.rejects(
+    async () => {
+      await withTempContext(async (ctx) => {
+        savedInputDir = ctx.inputDir;
+        throw new Error("boom");
+      });
+    },
+    { name: "Error", message: /boom/ },
+  );
 
   await assert.rejects(() => stat(savedInputDir), { code: "ENOENT" });
 });

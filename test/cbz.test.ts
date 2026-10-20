@@ -1,9 +1,9 @@
-import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { isImageFile, categorizeFiles, extractCbz, repackCbz } from "../src/cbz.ts";
+import { test } from "node:test";
+import { categorizeFiles, extractCbz, isImageFile, repackCbz } from "../src/cbz.ts";
 import { run } from "../src/exec.ts";
 import { skipWithoutZip } from "./support/tools.ts";
 
@@ -31,7 +31,9 @@ test("isImageFile - ignores macOS AppleDouble files", () => {
   assert.equal(isImageFile(join("__MACOSX", "chapter", "._page01.png")), false);
 });
 
-test("repackCbz - writes a relative output path relative to the caller's cwd", { skip: skipWithoutZip }, async () => {
+test("repackCbz - writes a relative output path relative to the caller's cwd", {
+  skip: skipWithoutZip,
+}, async () => {
   const workDir = await makeTempDir();
   const sourceDir = join(workDir, "source");
   await mkdir(sourceDir);
@@ -117,4 +119,3 @@ test("extractCbz and repackCbz - round trip", { skip: skipWithoutZip }, async ()
 
   await rm(workDir, { recursive: true });
 });
-

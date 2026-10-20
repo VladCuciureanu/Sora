@@ -1,8 +1,8 @@
-import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { test } from "node:test";
 import { loadConfig } from "../src/config.ts";
 
 const makeTempDir = () => mkdtemp(join(tmpdir(), "sora-test-"));
@@ -43,10 +43,7 @@ test("loadConfig - throws on invalid JSON", async () => {
   const path = join(dir, "config.json");
   await writeFile(path, "not json{");
 
-  await assert.rejects(
-    () => loadConfig(path),
-    { name: "Error", message: /not valid JSON/ },
-  );
+  await assert.rejects(() => loadConfig(path), { name: "Error", message: /not valid JSON/ });
 
   await rm(dir, { recursive: true });
 });
@@ -56,10 +53,7 @@ test("loadConfig - throws on missing engines key", async () => {
   const path = join(dir, "config.json");
   await writeFile(path, JSON.stringify({ foo: "bar" }));
 
-  await assert.rejects(
-    () => loadConfig(path),
-    { name: "Error", message: /"engines" object/ },
-  );
+  await assert.rejects(() => loadConfig(path), { name: "Error", message: /"engines" object/ });
 
   await rm(dir, { recursive: true });
 });
@@ -67,15 +61,9 @@ test("loadConfig - throws on missing engines key", async () => {
 test("loadConfig - throws on engine without binaryPath", async () => {
   const dir = await makeTempDir();
   const path = join(dir, "config.json");
-  await writeFile(
-    path,
-    JSON.stringify({ engines: { waifu2x: {} } }),
-  );
+  await writeFile(path, JSON.stringify({ engines: { waifu2x: {} } }));
 
-  await assert.rejects(
-    () => loadConfig(path),
-    { name: "Error", message: /binaryPath/ },
-  );
+  await assert.rejects(() => loadConfig(path), { name: "Error", message: /binaryPath/ });
 
   await rm(dir, { recursive: true });
 });

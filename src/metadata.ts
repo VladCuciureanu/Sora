@@ -26,5 +26,5 @@ export function createUpscaleMetadata(
 
 /** Write `meta` as `sora.upscale.json` in `dir` (the archive root), replacing any existing one. */
 export async function writeUpscaleMetadata(dir: string, meta: UpscaleMetadata): Promise<void> {
-  await writeFile(join(dir, METADATA_FILENAME), JSON.stringify(meta, null, 2) + "\n");
+  await writeFile(join(dir, METADATA_FILENAME), `${JSON.stringify(meta, null, 2)}\n`);
 }
