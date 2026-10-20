@@ -1,6 +1,6 @@
 {
   "name": "sora",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Upscale CBZ comic book archives with AI upscaling engines",
   "license": "MIT",
