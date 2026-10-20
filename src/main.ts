@@ -71,18 +71,8 @@ export function parseCliArgs(args: string[]): CliArgs | null {
   // With strict: false, a string option given without a value comes back as
   // `true`; treat it as an empty string.
   const str = (v: string | boolean | undefined) => (typeof v === "string" ? v : v ? "" : undefined);
-  const parsed = {
-    output: str(values.output),
-    engine: str(values.engine),
-    config: str(values.config),
-    scale: values.scale,
-    noise: values.noise,
-    concurrency: values.concurrency,
-    help: values.help,
-    "dry-run": values["dry-run"] === true,
-  };
 
-  if (parsed.help) {
+  if (values.help) {
     return null;
   }
 
@@ -91,32 +81,30 @@ export function parseCliArgs(args: string[]): CliArgs | null {
     throw new UsageError("input CBZ file is required", { showHelp: true });
   }
 
-  const scale = Number(parsed.scale);
+  const scale = Number(values.scale);
   if (![2, 4].includes(scale)) {
     throw new UsageError("--scale must be 2 or 4");
   }
 
-  const noise = Number(parsed.noise);
+  const noise = Number(values.noise);
   if (![-1, 0, 1, 2, 3].includes(noise)) {
     throw new UsageError("--noise must be -1, 0, 1, 2, or 3");
   }
 
-  const defaultOutput = join(dirname(input), `${basename(input, ".cbz")}_upscaled.cbz`);
-
-  const concurrency = parsed.concurrency != null ? Number(parsed.concurrency) : undefined;
-  if (concurrency != null && (!Number.isInteger(concurrency) || concurrency < 1)) {
+  const concurrency = values.concurrency === undefined ? undefined : Number(values.concurrency);
+  if (concurrency !== undefined && (!Number.isInteger(concurrency) || concurrency < 1)) {
     throw new UsageError("--concurrency must be a positive integer");
   }
 
   return {
     input,
-    output: parsed.output ?? defaultOutput,
-    engine: parsed.engine ?? "waifu2x",
+    output: str(values.output) ?? join(dirname(input), `${basename(input, ".cbz")}_upscaled.cbz`),
+    engine: str(values.engine) as string,
     scale,
     noise,
     concurrency,
-    configPath: parsed.config,
-    dryRun: parsed["dry-run"] ?? false,
+    configPath: str(values.config),
+    dryRun: values["dry-run"] === true,
   };
 }
 
