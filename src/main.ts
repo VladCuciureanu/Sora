@@ -46,16 +46,10 @@ export class UsageError extends Error {
   }
 }
 
-/**
- * Parse command-line arguments. Returns `null` when `--help` was requested.
- * Throws `UsageError` for invalid arguments.
- */
-export function parseCliArgs(args: string[]): CliArgs | null {
-  // strict: false: unknown flags are ignored and
-  // option values may start with a dash (e.g. `-n -1`).
-  const { values, positionals } = parseArgs({
+function parseOptions(args: string[]) {
+  return parseArgs({
     args,
-    strict: false,
+    strict: true,
     allowPositionals: true,
     options: {
       output: { type: "string", short: "o" },
@@ -64,21 +58,60 @@ export function parseCliArgs(args: string[]): CliArgs | null {
       noise: { type: "string", short: "n", default: "-1" },
       concurrency: { type: "string", short: "j" },
       config: { type: "string" },
-      help: { type: "boolean", short: "h" },
-      "dry-run": { type: "boolean" },
+      help: { type: "boolean", short: "h", default: false },
+      "dry-run": { type: "boolean", default: false },
     },
   });
-  // With strict: false, a string option given without a value comes back as
-  // `true`; treat it as an empty string.
-  const str = (v: string | boolean | undefined) => (typeof v === "string" ? v : v ? "" : undefined);
+}
+
+/**
+ * Strict parseArgs rejects option values that start with a dash, so rewrite
+ * `-n -1` and `--noise -1` as `--noise=-1`. Arguments after `--` are left alone.
+ */
+function joinNegativeNoise(args: string[]): string[] {
+  const result: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--") {
+      result.push(...args.slice(i));
+      break;
+    }
+    if ((arg === "-n" || arg === "--noise") && /^-\d/.test(args[i + 1] ?? "")) {
+      result.push(`--noise=${args[++i]}`);
+    } else {
+      result.push(arg);
+    }
+  }
+  return result;
+}
+
+/**
+ * Parse command-line arguments. Returns `null` when `--help` was requested.
+ * Throws `UsageError` for invalid arguments.
+ */
+export function parseCliArgs(args: string[]): CliArgs | null {
+  let parsed: ReturnType<typeof parseOptions>;
+  try {
+    parsed = parseOptions(joinNegativeNoise(args));
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code?.startsWith("ERR_PARSE_ARGS_")) {
+      // Keep only the first sentence: Node appends multi-line hints.
+      throw new UsageError((err as Error).message.split(/\.\s/)[0]);
+    }
+    throw err;
+  }
+  const { values, positionals } = parsed;
 
   if (values.help) {
     return null;
   }
 
-  const input = positionals[0];
+  const [input, ...extra] = positionals;
   if (!input) {
     throw new UsageError("input CBZ file is required", { showHelp: true });
+  }
+  if (extra.length > 0) {
+    throw new UsageError(`Unexpected argument: ${extra[0]}`);
   }
 
   const scale = Number(values.scale);
@@ -98,13 +131,13 @@ export function parseCliArgs(args: string[]): CliArgs | null {
 
   return {
     input,
-    output: str(values.output) ?? join(dirname(input), `${basename(input, ".cbz")}_upscaled.cbz`),
-    engine: str(values.engine) as string,
+    output: values.output ?? join(dirname(input), `${basename(input, ".cbz")}_upscaled.cbz`),
+    engine: values.engine,
     scale,
     noise,
     concurrency,
-    configPath: str(values.config),
-    dryRun: values["dry-run"] === true,
+    configPath: values.config,
+    dryRun: values["dry-run"],
   };
 }
 

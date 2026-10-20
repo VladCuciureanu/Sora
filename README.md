@@ -72,7 +72,7 @@ sora <input.cbz> [options]
 | `--dry-run` | Check the config and binary, print the plan, and exit | |
 | `-h, --help` | Print help | |
 
-Unrecognised options are ignored. Errors go to stderr, prefixed `sora:`, and exit with status 1.
+Unknown options and extra arguments are errors. Errors go to stderr, prefixed `sora:`, and exit with status 1.
 
 ```sh
 sora manga-vol1.cbz -o manga-vol1-hd.cbz -j 4

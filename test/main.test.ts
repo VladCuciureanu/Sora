@@ -89,3 +89,34 @@ for (const [flag, value, message] of [
     );
   });
 }
+
+for (const args of [
+  ["input.cbz", "-n", "-1"],
+  ["input.cbz", "--noise", "-1"],
+  ["input.cbz", "--noise=-1"],
+  ["input.cbz", "-n-1"],
+]) {
+  test(`parseCliArgs - accepts a negative noise level: ${args.slice(1).join(" ")}`, () => {
+    assert.equal(parseCliArgs(args).noise, -1);
+  });
+}
+
+for (const [args, message] of [
+  [["input.cbz", "--scal", "4"], /^Unknown option '--scal'$/],
+  [["input.cbz", "-x"], /^Unknown option '-x'$/],
+  [["input.cbz", "--dry-run=yes"], /^Option '--dry-run' does not take an argument$/],
+  [["input.cbz", "-o"], /^Option '-o, --output <value>' argument missing$/],
+  [["input.cbz", "-s", "-2"], /^Option '-s' argument is ambiguous$/],
+  [["input.cbz", "extra.cbz"], /^Unexpected argument: extra\.cbz$/],
+] as const) {
+  test(`parseCliArgs - rejects ${args.slice(1).join(" ")}`, () => {
+    assert.throws(
+      () => parseOrHelp([...args]),
+      (err: unknown) => {
+        assert.ok(err instanceof UsageError);
+        assert.match(err.message, message);
+        return true;
+      },
+    );
+  });
+}

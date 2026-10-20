@@ -76,3 +76,10 @@ test("cli - rejects waifu2x when it is missing from the config", async () => {
     await rm(dir, { recursive: true });
   }
 });
+
+test("cli - unknown option prints one error line, exits 1", () => {
+  const result = runCli(["in.cbz", "--scal", "4"]);
+  assert.equal(result.status, 1);
+  assert.equal(result.stderr, "sora: Unknown option '--scal'\n");
+  assert.equal(result.stdout, "");
+});
