@@ -1,4 +1,4 @@
-import { mkdir, stat } from "node:fs/promises";
+import { access, constants, mkdir, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import process from "node:process";
 import { run as defaultRun, type Runner } from "./exec.ts";
@@ -14,11 +14,15 @@ export interface Waifu2xOptions {
   run?: Runner;
 }
 
-/** Whether `binaryPath` points at a usable waifu2x binary. */
+/**
+ * Whether `binaryPath` is an executable file. On Windows, which has no execute
+ * permission bit, any existing file counts.
+ */
 export async function isWaifu2xAvailable(binaryPath: string): Promise<boolean> {
   try {
-    const info = await stat(binaryPath);
-    return info.isFile();
+    if (!(await stat(binaryPath)).isFile()) return false;
+    await access(binaryPath, constants.X_OK);
+    return true;
   } catch {
     return false;
   }

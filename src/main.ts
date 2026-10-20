@@ -163,8 +163,8 @@ async function main(): Promise<void> {
 
   if (!(await isWaifu2xAvailable(engine.binaryPath))) {
     throw new Error(
-      `Engine "${args.engine}" binary not found or not executable.\n` +
-        `Check the binaryPath in your config file.`,
+      `waifu2x binary not found or not executable: ${engine.binaryPath}. ` +
+        `Check binaryPath in ${args.configPath ?? defaultConfigPath()}`,
     );
   }
 

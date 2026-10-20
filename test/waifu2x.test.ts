@@ -6,7 +6,7 @@ import process from "node:process";
 import { test } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 import type { RunResult } from "../src/exec.ts";
-import { buildWaifu2xArgs, runPool, upscaleImages } from "../src/waifu2x.ts";
+import { buildWaifu2xArgs, isWaifu2xAvailable, runPool, upscaleImages } from "../src/waifu2x.ts";
 
 const makeTempDir = () => mkdtemp(join(tmpdir(), "sora-test-"));
 const inImg = join("in", "img.jpg");
@@ -159,4 +159,31 @@ test("waifu2x upscale - concurrent failure rejects once with no unhandled reject
   assert.deepEqual(unhandled, []);
 
   await rm(workDir, { recursive: true });
+});
+
+test("isWaifu2xAvailable - accepts an executable file", async () => {
+  assert.equal(await isWaifu2xAvailable(process.execPath), true);
+});
+
+test("isWaifu2xAvailable - rejects a missing path and a directory", async () => {
+  const dir = await makeTempDir();
+  try {
+    assert.equal(await isWaifu2xAvailable(join(dir, "missing")), false);
+    assert.equal(await isWaifu2xAvailable(dir), false);
+  } finally {
+    await rm(dir, { recursive: true });
+  }
+});
+
+test("isWaifu2xAvailable - rejects a file without execute permission", {
+  skip: process.platform === "win32" ? "Windows has no execute permission bit" : false,
+}, async () => {
+  const dir = await makeTempDir();
+  try {
+    const binary = join(dir, "waifu2x-ncnn-vulkan");
+    await writeFile(binary, "", { mode: 0o644 });
+    assert.equal(await isWaifu2xAvailable(binary), false);
+  } finally {
+    await rm(dir, { recursive: true });
+  }
 });

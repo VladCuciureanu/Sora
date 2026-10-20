@@ -124,3 +124,21 @@ test("cli - --help shows the default config path", () => {
   const configLine = result.stdout.split("\n").find((line) => line.includes("--config")) ?? "";
   assert.ok(configLine.endsWith(`(default: ${path})`), configLine);
 });
+
+test("cli - a missing waifu2x binary is reported on one line", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "sora-test-"));
+  try {
+    const binary = join(dir, "waifu2x-ncnn-vulkan");
+    const config = join(dir, "config.json");
+    await writeFile(config, JSON.stringify({ engines: { waifu2x: { binaryPath: binary } } }));
+    const result = runCli([join(dir, "in.cbz"), "--config", config]);
+    assert.equal(result.status, 1);
+    assert.equal(
+      result.stderr,
+      `sora: waifu2x binary not found or not executable: ${binary}. Check binaryPath in ${config}
+`,
+    );
+  } finally {
+    await rm(dir, { recursive: true });
+  }
+});
