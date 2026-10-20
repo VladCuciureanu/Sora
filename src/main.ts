@@ -4,7 +4,7 @@ import { basename, dirname, join } from "node:path";
 import process from "node:process";
 import { parseArgs } from "node:util";
 import { extractCbz, repackCbz } from "./cbz.ts";
-import { type EngineConfig, loadConfig } from "./config.ts";
+import { defaultConfigPath, type EngineConfig, loadConfig } from "./config.ts";
 import type { Runner } from "./exec.ts";
 import { createUpscaleMetadata, writeUpscaleMetadata } from "./metadata.ts";
 import { withTempContext } from "./temp.ts";
@@ -19,8 +19,8 @@ Options:
   -e, --engine <name>     Engine to use (default: waifu2x)
   -s, --scale <2|4>       Scale factor (default: 2)
   -n, --noise <-1..3>     Denoise level (default: -1, none)
-  -j, --concurrency <N>   Parallel upscaling processes (default: 1)
-  --config <path>         Config file path
+  -j, --concurrency <N>   Parallel upscaling processes (default: config, else 1)
+  --config <path>         Config file (default: ${defaultConfigPath()})
   --dry-run               Check config, binary and input, then print the plan
   -h, --help              Show this help`;
 

@@ -9,8 +9,8 @@ import { fileURLToPath } from "node:url";
 
 const mainPath = fileURLToPath(new URL("../src/main.ts", import.meta.url));
 
-function runCli(args: string[]) {
-  return spawnSync(process.execPath, [mainPath, ...args], { encoding: "utf8" });
+function runCli(args: string[], env: NodeJS.ProcessEnv = process.env) {
+  return spawnSync(process.execPath, [mainPath, ...args], { encoding: "utf8", env });
 }
 
 test("cli - runtime errors print a message without a stack trace and exit 1", async () => {
@@ -119,4 +119,13 @@ test("cli - --dry-run prints the plan without listing engines", async () => {
   } finally {
     await rm(dir, { recursive: true });
   }
+});
+
+test("cli - --help shows the default config path", () => {
+  const xdg = join(tmpdir(), "sora-xdg");
+  const result = runCli(["--help"], { ...process.env, XDG_CONFIG_HOME: xdg });
+  assert.equal(result.status, 0);
+  const path = join(xdg, "sora", "config.json");
+  const configLine = result.stdout.split("\n").find((line) => line.includes("--config")) ?? "";
+  assert.ok(configLine.endsWith(`(default: ${path})`), configLine);
 });
