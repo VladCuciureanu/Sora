@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { isImageFile, categorizeFiles, extractCbz, repackCbz } from "../src/cbz.ts";
 import { run } from "../src/exec.ts";
+import { skipWithoutZip } from "./support/tools.ts";
 
 const makeTempDir = () => mkdtemp(join(tmpdir(), "sora-test-"));
 
@@ -45,7 +46,7 @@ test("categorizeFiles - handles nested directories", async () => {
   await rm(dir, { recursive: true });
 });
 
-test("extractCbz and repackCbz - round trip", async () => {
+test("extractCbz and repackCbz - round trip", { skip: skipWithoutZip }, async () => {
   const workDir = await makeTempDir();
   const sourceDir = join(workDir, "source");
   const extractDir = join(workDir, "extracted");
@@ -62,7 +63,8 @@ test("extractCbz and repackCbz - round trip", async () => {
   await writeFile(join(sourceDir, "ComicInfo.xml"), "<ComicInfo/>");
 
   // Create a CBZ (zip) from source
-  await run("zip", ["-r", cbzPath, "."], { cwd: sourceDir });
+  const zipped = await run("zip", ["-r", cbzPath, "."], { cwd: sourceDir });
+  assert.ok(zipped.success, zipped.stderr);
 
   // Extract
   const contents = await extractCbz(cbzPath, extractDir);
