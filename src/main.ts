@@ -21,7 +21,7 @@ Options:
   -e, --engine <name>     Engine to use (default: waifu2x)
   -s, --scale <2|4>       Scale factor (default: 2)
   -n, --noise <-1..3>     Denoise level (default: -1, none)
-  -j, --concurrency <N>   Parallel processes per batch (default: 1)
+  -j, --concurrency <N>   Parallel upscaling processes (default: 1)
   --config <path>         Config file path
   --dry-run               Show what would be done
   -h, --help              Show this help`;

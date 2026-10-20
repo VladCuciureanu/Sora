@@ -6,7 +6,6 @@ import { basename, join } from "node:path";
 import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
 import {
-  splitIntoBatches,
   buildWaifu2xArgs,
   collectImageFiles,
   createWaifu2xEngine,
@@ -25,29 +24,6 @@ async function copyRunner(_command: string, args: string[]): Promise<RunResult> 
   await copyFile(input, output);
   return { success: true, stderr: "" };
 }
-
-test("splitIntoBatches - splits evenly", () => {
-  const items = [1, 2, 3, 4, 5, 6];
-  const batches = splitIntoBatches(items, 2);
-  assert.deepEqual(batches, [[1, 2], [3, 4], [5, 6]]);
-});
-
-test("splitIntoBatches - handles remainder", () => {
-  const items = [1, 2, 3, 4, 5];
-  const batches = splitIntoBatches(items, 2);
-  assert.deepEqual(batches, [[1, 2], [3, 4], [5]]);
-});
-
-test("splitIntoBatches - single batch when under size", () => {
-  const items = [1, 2, 3];
-  const batches = splitIntoBatches(items, 10);
-  assert.deepEqual(batches, [[1, 2, 3]]);
-});
-
-test("splitIntoBatches - empty input", () => {
-  const batches = splitIntoBatches([], 5);
-  assert.deepEqual(batches, []);
-});
 
 test("buildWaifu2xArgs - basic scale only", () => {
   const args = buildWaifu2xArgs(inImg, outImg, { scale: 2, noise: -1 });
