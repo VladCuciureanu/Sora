@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createUpscaleMetadata, tagFile } from "../src/metadata.ts";
+import { createUpscaleMetadata, METADATA_FILENAME, writeUpscaleMetadata } from "../src/metadata.ts";
 import type { UpscaleMetadata } from "../src/metadata.ts";
 
 const makeTempDir = () => mkdtemp(join(tmpdir(), "sora-test-"));
@@ -25,53 +25,26 @@ test("createUpscaleMetadata - creates metadata with timestamp", () => {
   assert.ok(meta.timestamp.length > 0);
 });
 
-test("tagFile - injects metadata into XML file", async () => {
+test("writeUpscaleMetadata - writes sora.upscale.json in the given directory", async () => {
   const dir = await makeTempDir();
-  const xmlPath = join(dir, "ComicInfo.xml");
-  await writeFile(xmlPath, `<?xml version="1.0"?>\n<ComicInfo>\n  <Title>Test</Title>\n</ComicInfo>`);
-
-  await tagFile(xmlPath, makeMeta());
-
-  const content = await readFile(xmlPath, "utf8");
-  assert.ok(content.includes("<UpscaleInfo>"));
-  assert.ok(content.includes("<Engine>waifu2x</Engine>"));
-  assert.ok(content.includes("<Scale>2</Scale>"));
-  assert.ok(content.includes("<Noise>1</Noise>"));
-  // Ensure it's before the closing tag
-  const upscaleIdx = content.indexOf("<UpscaleInfo>");
-  const closingIdx = content.indexOf("</ComicInfo>");
-  assert.ok(upscaleIdx < closingIdx);
-
-  await rm(dir, { recursive: true });
+  try {
+    assert.equal(METADATA_FILENAME, "sora.upscale.json");
+    await writeUpscaleMetadata(dir, makeMeta());
+    const content = JSON.parse(await readFile(join(dir, METADATA_FILENAME), "utf8"));
+    assert.deepEqual(content, makeMeta());
+  } finally {
+    await rm(dir, { recursive: true });
+  }
 });
 
-test("tagFile - writes sidecar JSON for non-XML files", async () => {
+test("writeUpscaleMetadata - replaces an existing metadata file", async () => {
   const dir = await makeTempDir();
-  const filePath = join(dir, "readme.txt");
-  await writeFile(filePath, "hello");
-
-  await tagFile(filePath, makeMeta());
-
-  const sidecar = join(dir, "readme.txt.upscale-meta.json");
-  const content = JSON.parse(await readFile(sidecar, "utf8"));
-  assert.equal(content.engine, "waifu2x");
-  assert.equal(content.scale, 2);
-  assert.equal(content.noise, 1);
-
-  await rm(dir, { recursive: true });
-});
-
-test("tagFile - escapes XML special characters in engine name", async () => {
-  const dir = await makeTempDir();
-  const xmlPath = join(dir, "meta.xml");
-  await writeFile(xmlPath, "<Root></Root>");
-
-  const meta = makeMeta();
-  meta.engine = "test<>&\"engine";
-  await tagFile(xmlPath, meta);
-
-  const content = await readFile(xmlPath, "utf8");
-  assert.ok(content.includes("&lt;&gt;&amp;&quot;"));
-
-  await rm(dir, { recursive: true });
+  try {
+    await writeFile(join(dir, METADATA_FILENAME), '{"engine":"old"}');
+    await writeUpscaleMetadata(dir, makeMeta());
+    const content = JSON.parse(await readFile(join(dir, METADATA_FILENAME), "utf8"));
+    assert.equal(content.engine, "waifu2x");
+  } finally {
+    await rm(dir, { recursive: true });
+  }
 });

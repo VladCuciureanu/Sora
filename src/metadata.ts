@@ -1,5 +1,8 @@
-import { readFile, writeFile } from "node:fs/promises";
-import { join, dirname, basename, extname } from "node:path";
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
+
+/** Name of the metadata file written at the root of every upscaled archive. */
+export const METADATA_FILENAME = "sora.upscale.json";
 
 export interface UpscaleMetadata {
   engine: string;
@@ -7,8 +10,6 @@ export interface UpscaleMetadata {
   noise: number;
   timestamp: string;
 }
-
-const XML_EXTENSIONS = new Set([".xml"]);
 
 export function createUpscaleMetadata(
   engine: string,
@@ -23,56 +24,7 @@ export function createUpscaleMetadata(
   };
 }
 
-export async function tagFile(filePath: string, meta: UpscaleMetadata): Promise<void> {
-  const ext = extname(filePath).toLowerCase();
-
-  if (XML_EXTENSIONS.has(ext)) {
-    await tagXmlFile(filePath, meta);
-  } else {
-    await writeSidecarFile(filePath, meta);
-  }
-}
-
-async function tagXmlFile(filePath: string, meta: UpscaleMetadata): Promise<void> {
-  let content = await readFile(filePath, "utf8");
-
-  const metaXml = [
-    `  <UpscaleInfo>`,
-    `    <Engine>${escapeXml(meta.engine)}</Engine>`,
-    `    <Scale>${meta.scale}</Scale>`,
-    `    <Noise>${meta.noise}</Noise>`,
-    `    <Timestamp>${escapeXml(meta.timestamp)}</Timestamp>`,
-    `  </UpscaleInfo>`,
-  ].join("\n");
-
-  // Try to insert before the closing root tag
-  const closingTagMatch = content.match(/<\/(\w+)>\s*$/);
-  if (closingTagMatch) {
-    const idx = content.lastIndexOf(closingTagMatch[0]);
-    content = content.slice(0, idx) + metaXml + "\n" + content.slice(idx);
-  } else {
-    // Append if no closing tag found
-    content += "\n" + metaXml;
-  }
-
-  await writeFile(filePath, content);
-}
-
-function escapeXml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function sidecarPath(filePath: string): string {
-  const dir = dirname(filePath);
-  const name = basename(filePath);
-  return join(dir, `${name}.upscale-meta.json`);
-}
-
-async function writeSidecarFile(filePath: string, meta: UpscaleMetadata): Promise<void> {
-  const path = sidecarPath(filePath);
-  await writeFile(path, JSON.stringify(meta, null, 2) + "\n");
+/** Write `meta` as `sora.upscale.json` in `dir` (the archive root), replacing any existing one. */
+export async function writeUpscaleMetadata(dir: string, meta: UpscaleMetadata): Promise<void> {
+  await writeFile(join(dir, METADATA_FILENAME), JSON.stringify(meta, null, 2) + "\n");
 }

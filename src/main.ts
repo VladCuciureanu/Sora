@@ -10,7 +10,7 @@ import { extractCbz, repackCbz, type CbzContents } from "./cbz.ts";
 import { withTempContext } from "./temp.ts";
 import type { UpscaleEngine } from "./engines/engine.ts";
 import { createWaifu2xEngine } from "./engines/waifu2x.ts";
-import { createUpscaleMetadata, tagFile } from "./metadata.ts";
+import { createUpscaleMetadata, writeUpscaleMetadata } from "./metadata.ts";
 
 const HELP = `Sora — Upscale CBZ comic book archives
 
@@ -223,15 +223,17 @@ export async function upscaleCbz(
       noise: args.noise,
     });
 
-    // Copy and tag non-image files
-    const meta = createUpscaleMetadata(args.engine, args.scale, args.noise);
+    // Copy non-image files unchanged, then record how the archive was upscaled
     for (const file of contents.otherFiles) {
       const src = join(ctx.inputDir, file);
       const dst = join(ctx.outputDir, file);
       await mkdir(dirname(dst), { recursive: true });
       await copyFile(src, dst);
-      await tagFile(dst, meta);
     }
+    await writeUpscaleMetadata(
+      ctx.outputDir,
+      createUpscaleMetadata(args.engine, args.scale, args.noise),
+    );
 
     // Repack
     console.log("Repacking CBZ...");
