@@ -6,20 +6,32 @@ A CLI that shoves your CBZ archives through AI upscaling engines and spits out f
 
 - **AI upscaling** — pluggable engine system (ships with waifu2x-ncnn-vulkan)
 - **Parallel processing** — configurable concurrency for batch upscaling
-- **Metadata preservation** — non-image files are copied and tagged with upscale info
+- **Metadata preservation** — non-image files (including `ComicInfo.xml`) are copied unchanged, and a `sora.upscale.json` at the archive root records the engine, scale, noise level and time of the upscale
+- **Format-aware** — JPEG, PNG and WebP pages are upscaled; other images (GIF, BMP, TIFF) are copied through unchanged
 - **Scale & denoise** — 2x/4x upscaling with adjustable noise reduction (-1 to 3)
 - **Dry run mode** — preview what would happen before committing
 
 ## Install
 
-Requires [Deno](https://deno.com).
+Requires [Node.js](https://nodejs.org) 24 or newer, plus `zip` and `unzip` on your `PATH`.
 
 ```sh
-# Run directly
-deno task start
+npm install
 
-# Or compile to a binary
-deno task compile
+# Run directly from source
+npm start -- <input.cbz> [options]
+
+# Or install the `sora` command globally (builds to dist/ first)
+npm run build
+npm link
+```
+
+## Development
+
+```sh
+npm run dev        # run with --watch
+npm test           # run the test suite
+npm run typecheck  # type-check with tsc
 ```
 
 ## Setup

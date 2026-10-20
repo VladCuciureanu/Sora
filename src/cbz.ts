@@ -1,8 +1,10 @@
-import { join, extname, relative } from "@std/path";
+import { readdir } from "node:fs/promises";
+import { basename, join, extname, relative, resolve } from "node:path";
+import { run } from "./exec.ts";
 
-const IMAGE_EXTENSIONS = new Set([
-  ".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff", ".tif", ".gif",
-]);
+// Formats waifu2x-ncnn-vulkan can read. Other images (gif, bmp, tiff, ...)
+// are treated as ordinary files and copied through unchanged.
+const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
 
 export interface CbzContents {
   imageFiles: string[];
@@ -10,20 +12,17 @@ export interface CbzContents {
 }
 
 export function isImageFile(path: string): boolean {
+  // macOS AppleDouble files (`._page.jpg`, usually under `__MACOSX/`) are
+  // metadata, not images; waifu2x can't read them.
+  if (basename(path).startsWith("._")) return false;
   return IMAGE_EXTENSIONS.has(extname(path).toLowerCase());
 }
 
 export async function extractCbz(cbzPath: string, outputDir: string): Promise<CbzContents> {
-  // Use Deno's built-in zip handling via `unzip` command
-  const cmd = new Deno.Command("unzip", {
-    args: ["-o", cbzPath, "-d", outputDir],
-    stdout: "null",
-    stderr: "piped",
-  });
-  const result = await cmd.output();
+  // Extract via the system `unzip` command
+  const result = await run("unzip", ["-o", cbzPath, "-d", outputDir]);
   if (!result.success) {
-    const stderr = new TextDecoder().decode(result.stderr);
-    throw new Error(`Failed to extract CBZ: ${stderr}`);
+    throw new Error(`Failed to extract CBZ: ${result.stderr}`);
   }
 
   return categorizeFiles(outputDir);
@@ -48,35 +47,22 @@ export async function categorizeFiles(dir: string): Promise<CbzContents> {
 }
 
 async function* walkFiles(dir: string): AsyncGenerator<string> {
-  for await (const entry of Deno.readDir(dir)) {
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
     const path = join(dir, entry.name);
-    if (entry.isDirectory) {
+    if (entry.isDirectory()) {
       yield* walkFiles(path);
-    } else if (entry.isFile) {
+    } else if (entry.isFile()) {
       yield path;
     }
   }
 }
 
+/** Zip `sourceDir` into `outputPath`. The caller ensures `outputPath` does not exist yet. */
 export async function repackCbz(sourceDir: string, outputPath: string): Promise<void> {
-  try {
-    await Deno.stat(outputPath);
-    throw new Error(`Output file already exists: ${outputPath}`);
-  } catch (e) {
-    if (!(e instanceof Deno.errors.NotFound)) {
-      throw e;
-    }
-  }
-
-  const cmd = new Deno.Command("zip", {
-    args: ["-r", outputPath, "."],
-    cwd: sourceDir,
-    stdout: "null",
-    stderr: "piped",
-  });
-  const result = await cmd.output();
+  // zip runs inside sourceDir, so a relative outputPath must be resolved first
+  // or the archive lands in the temp dir and is deleted with it.
+  const result = await run("zip", ["-r", resolve(outputPath), "."], { cwd: sourceDir });
   if (!result.success) {
-    const stderr = new TextDecoder().decode(result.stderr);
-    throw new Error(`Failed to create CBZ: ${stderr}`);
+    throw new Error(`Failed to create CBZ: ${result.stderr}`);
   }
 }

@@ -1,4 +1,6 @@
-import { join } from "@std/path";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import process from "node:process";
 
 export interface EngineConfig {
   binaryPath: string;
@@ -11,7 +13,7 @@ export interface Config {
 
 function getDefaultConfigPath(): string {
   return join(
-    Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? ".",
+    process.env.HOME ?? process.env.USERPROFILE ?? ".",
     ".config",
     "sora",
     "config.json",
@@ -23,9 +25,9 @@ export async function loadConfig(configPath?: string): Promise<Config> {
 
   let raw: string;
   try {
-    raw = await Deno.readTextFile(path);
+    raw = await readFile(path, "utf8");
   } catch (e) {
-    if (e instanceof Deno.errors.NotFound) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") {
       throw new Error(
         `Config file not found at ${path}\n\n` +
           `Create it with:\n` +
