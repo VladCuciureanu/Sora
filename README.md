@@ -37,7 +37,7 @@ Or run from source without linking: `npm start -- <input.cbz> [options]`.
 
 ## Configuration
 
-Sora reads the file given with `--config`. Otherwise it reads `$XDG_CONFIG_HOME/sora/config.json` if that exists, and falls back to `$HOME/.config/sora/config.json` (`%USERPROFILE%\.config\sora\config.json` on Windows if `HOME` is unset). `XDG_CONFIG_HOME` is ignored when it is unset, empty or not an absolute path. If no config file is found, the error lists every path Sora checked.
+Sora reads the file given with `--config`, which must exist: Sora does not fall back to the default locations. Otherwise it reads `$XDG_CONFIG_HOME/sora/config.json` if that exists, and falls back to `$HOME/.config/sora/config.json` (`%USERPROFILE%\.config\sora\config.json` on Windows if `HOME` is unset). `XDG_CONFIG_HOME` is ignored when it is unset, empty or not an absolute path. If no config file is found, the error lists every path Sora checked.
 
 ```json
 {
