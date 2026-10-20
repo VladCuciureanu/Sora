@@ -209,5 +209,8 @@ function isMainModule(): boolean {
 }
 
 if (isMainModule()) {
-  main();
+  main().catch((err: unknown) => {
+    console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+    process.exitCode = 1;
+  });
 }
