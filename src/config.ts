@@ -26,11 +26,6 @@ export function defaultConfigPaths(env: NodeJS.ProcessEnv = process.env): string
   return xdgPath === home ? [home] : [xdgPath, home];
 }
 
-/** The preferred default config file location (the first of `defaultConfigPaths`). */
-export function defaultConfigPath(env: NodeJS.ProcessEnv = process.env): string {
-  return defaultConfigPaths(env)[0];
-}
-
 /** Setup instructions for creating `checked[0]`, naming every path that was checked. */
 function notFoundError(checked: string[]): Error {
   const path = checked[0];
@@ -58,15 +53,14 @@ function isNotFound(e: unknown): boolean {
 }
 
 /**
- * Return the first of `defaultConfigPaths(env)` that exists. Throws with setup
- * instructions, listing every path checked, if none does.
+ * Return the first of `defaultConfigPaths(env)` that is a regular file. Throws
+ * with setup instructions, listing every path checked, if none is.
  */
 export async function findConfigPath(env: NodeJS.ProcessEnv = process.env): Promise<string> {
   const candidates = defaultConfigPaths(env);
   for (const path of candidates) {
     try {
-      await stat(path);
-      return path;
+      if ((await stat(path)).isFile()) return path;
     } catch (e) {
       if (!isNotFound(e)) throw e;
     }
@@ -87,6 +81,9 @@ export async function loadConfig(
   } catch (e) {
     if (isNotFound(e)) {
       throw notFoundError([path]);
+    }
+    if ((e as NodeJS.ErrnoException).code === "EISDIR") {
+      throw new Error(`Config path ${path} is a directory, not a file`);
     }
     throw e;
   }
