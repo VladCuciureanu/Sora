@@ -1,42 +1,39 @@
 # Sora
 
-A CLI that shoves your CBZ archives through AI upscaling engines and spits out files so sharp they could cut glass.
+Sora upscales the pages of a CBZ comic archive with [waifu2x-ncnn-vulkan](https://github.com/nihui/waifu2x-ncnn-vulkan) and writes a new CBZ next to the original.
 
-## Features
+```sh
+$ sora manga-vol1.cbz -s 4 -n 2
+Upscaling manga-vol1.cbz...
+  Engine: waifu2x | Scale: 4x | Noise: 2
+Extracting CBZ...
+  Found 212 images, 1 other files
+Upscaling images...
+  [100%] 212/212 — page212.jpg
+Repacking CBZ...
+Done! Output: manga-vol1_upscaled.cbz
+```
 
-- **AI upscaling** — pluggable engine system (ships with waifu2x-ncnn-vulkan)
-- **Parallel processing** — configurable concurrency for batch upscaling
-- **Metadata preservation** — non-image files (including `ComicInfo.xml`) are copied unchanged, and a `sora.upscale.json` at the archive root records the engine, scale, noise level and time of the upscale
-- **Format-aware** — JPEG, PNG and WebP pages are upscaled; other images (GIF, BMP, TIFF) are copied through unchanged
-- **Scale & denoise** — 2x/4x upscaling with adjustable noise reduction (-1 to 3)
-- **Dry run mode** — preview what would happen before committing
+JPEG, PNG and WebP pages are upscaled. Everything else in the archive (GIF/BMP/TIFF images, `ComicInfo.xml`, other files) is copied through unchanged, and macOS `._*` files are never treated as images. Sora adds a `sora.upscale.json` at the archive root recording the engine, scale, noise level and timestamp.
+
+## Requirements
+
+- Node.js 26 or newer
+- `zip` and `unzip` on your `PATH`
+- A [waifu2x-ncnn-vulkan](https://github.com/nihui/waifu2x-ncnn-vulkan/releases) binary
 
 ## Install
 
-Requires [Node.js](https://nodejs.org) 26 or newer, plus `zip` and `unzip` on your `PATH`.
-
 ```sh
-npm install
-
-# Run directly from source
-npm start -- <input.cbz> [options]
-
-# Or install the `sora` command globally (builds to dist/ first)
-npm run build
-npm link
+npm install   # also builds dist/
+npm link      # puts `sora` on your PATH
 ```
 
-## Development
+Or run from source without linking: `npm start -- <input.cbz> [options]`.
 
-```sh
-npm run dev        # run with --watch
-npm test           # run the test suite
-npm run typecheck  # type-check with tsc
-```
+## Configuration
 
-## Setup
-
-Create a config file at `~/.config/sora/config.json`:
+Sora reads `$HOME/.config/sora/config.json` (`%USERPROFILE%\.config\sora\config.json` on Windows if `HOME` is unset), or the file given with `--config`. It must exist.
 
 ```json
 {
@@ -49,36 +46,42 @@ Create a config file at `~/.config/sora/config.json`:
 }
 ```
 
+| Key | Required | Description |
+|-----|----------|-------------|
+| `engines.waifu2x.binaryPath` | yes | Path to the waifu2x-ncnn-vulkan binary |
+| `engines.waifu2x.concurrency` | no | Number of waifu2x processes to run at once (default `1`); `-j` overrides it |
+
 ## Usage
 
 ```sh
 sora <input.cbz> [options]
 ```
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `-o, --output <path>` | Output file path | `<input>_upscaled.cbz` |
-| `-e, --engine <name>` | Upscaling engine | `waifu2x` |
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-o, --output <path>` | Output file; must not already exist | `<input>_upscaled.cbz` in the input's directory |
+| `-e, --engine <name>` | Engine (only `waifu2x` exists) | `waifu2x` |
 | `-s, --scale <2\|4>` | Scale factor | `2` |
-| `-n, --noise <-1..3>` | Denoise level (-1 = off) | `-1` |
-| `-j, --concurrency <N>` | Parallel processes | `1` |
-| `--config <path>` | Custom config file | `~/.config/sora/config.json` |
-| `--dry-run` | Preview without upscaling | — |
+| `-n, --noise <-1..3>` | Denoise level; `-1` disables denoising | `-1` |
+| `-j, --concurrency <N>` | Parallel waifu2x processes | config value, else `1` |
+| `--config <path>` | Config file | `~/.config/sora/config.json` |
+| `--dry-run` | Check the config and binary, print the plan, and exit | |
+| `-h, --help` | Print help | |
 
-### Examples
+Unrecognised options are ignored. Errors go to stderr and exit with status 1.
 
 ```sh
-# Basic 2x upscale
-sora manga-vol1.cbz
-
-# 4x upscale with denoising, 4 parallel processes
-sora manga-vol1.cbz -s 4 -n 2 -j 4
-
-# Custom output path
-sora manga-vol1.cbz -o manga-vol1-hd.cbz
-
-# See what would happen
+sora manga-vol1.cbz -o manga-vol1-hd.cbz -j 4
 sora manga-vol1.cbz --dry-run
+```
+
+## Development
+
+```sh
+npm run dev        # run src/main.ts with --watch
+npm test           # node --test; zip/unzip tests skip if the tools are missing
+npm run typecheck  # tsc
+npm run build      # compile to dist/
 ```
 
 ## License
