@@ -21,7 +21,7 @@ Options:
   -n, --noise <-1..3>     Denoise level (default: -1, none)
   -j, --concurrency <N>   Parallel upscaling processes (default: 1)
   --config <path>         Config file path
-  --dry-run               Show what would be done
+  --dry-run               Check config, binary and input, then print the plan
   -h, --help              Show this help`;
 
 export interface CliArgs {
@@ -168,6 +168,8 @@ async function main(): Promise<void> {
     );
   }
 
+  await assertInputFile(args.input);
+
   if (args.dryRun) {
     console.log("Dry run — would perform:");
     console.log(`  Input:  ${args.input}`);
@@ -175,11 +177,19 @@ async function main(): Promise<void> {
     console.log(`  Engine: ${args.engine}`);
     console.log(`  Scale:  ${args.scale}x`);
     console.log(`  Noise:  ${args.noise}`);
-    console.log(`  Available engines: waifu2x`);
     return;
   }
 
   await upscaleCbz(args, engine);
+}
+
+async function assertInputFile(path: string): Promise<void> {
+  if (!(await pathExists(path))) {
+    throw new Error(`Input file not found: ${path}`);
+  }
+  if (!(await stat(path)).isFile()) {
+    throw new Error(`Input is not a file: ${path}`);
+  }
 }
 
 async function pathExists(path: string): Promise<boolean> {

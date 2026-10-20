@@ -69,7 +69,7 @@ sora <input.cbz> [options]
 | `-n, --noise <-1..3>` | Denoise level; `-1` disables denoising | `-1` |
 | `-j, --concurrency <N>` | Parallel waifu2x processes | config value, else `1` |
 | `--config <path>` | Config file | `~/.config/sora/config.json` |
-| `--dry-run` | Check the config and binary, print the plan, and exit | |
+| `--dry-run` | Check the config, binary and input file, print the plan, and exit | |
 | `-h, --help` | Print help | |
 
 Unknown options and extra arguments are errors. Errors go to stderr, prefixed `sora:`, and exit with status 1.
