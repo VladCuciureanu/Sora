@@ -101,7 +101,8 @@ export async function loadConfig(
   return validateConfig(parsed);
 }
 
-const ENGINE_NAMES = ["waifu2x"];
+/** Engines Sora knows how to run. */
+export const ENGINE_NAMES: readonly string[] = ["waifu2x"];
 const ENGINE_KEYS = ["binaryPath", "concurrency"];
 
 function isObject(value: unknown): value is Record<string, unknown> {

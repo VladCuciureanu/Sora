@@ -4,7 +4,13 @@ import { basename, dirname, join } from "node:path";
 import process from "node:process";
 import { parseArgs } from "node:util";
 import { extractCbz, repackCbz } from "./cbz.ts";
-import { defaultConfigPaths, type EngineConfig, findConfigPath, loadConfig } from "./config.ts";
+import {
+  defaultConfigPaths,
+  ENGINE_NAMES,
+  type EngineConfig,
+  findConfigPath,
+  loadConfig,
+} from "./config.ts";
 import type { Runner } from "./exec.ts";
 import { createUpscaleMetadata, writeUpscaleMetadata } from "./metadata.ts";
 import { withTempContext } from "./temp.ts";
@@ -172,6 +178,13 @@ export function parseCliArgs(args: string[]): CliArgs | null {
     throw new UsageError("--concurrency must be a positive integer");
   }
 
+  // Checked here, before the config is loaded, so a typo is not reported as a config problem.
+  if (!ENGINE_NAMES.includes(values.engine)) {
+    throw new UsageError(
+      `Unknown engine "${values.engine}". Available: ${ENGINE_NAMES.join(", ")}`,
+    );
+  }
+
   return {
     input,
     output:
@@ -195,9 +208,6 @@ async function main(): Promise<void> {
 
   const configPath = args.configPath ?? (await findConfigPath());
   const config = await loadConfig(configPath);
-  if (args.engine !== "waifu2x") {
-    throw new Error(`Unknown engine "${args.engine}". Available: waifu2x`);
-  }
   const engine = config.engines.waifu2x;
   if (!engine) {
     throw new Error(

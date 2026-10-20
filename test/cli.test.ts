@@ -181,3 +181,20 @@ test("cli - falls back to ~/.config when XDG_CONFIG_HOME has no config", async (
     await rm(dir, { recursive: true });
   }
 });
+
+test("cli - an unknown --engine is reported before the config is loaded", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "sora-test-"));
+  try {
+    const result = runCli([
+      join(dir, "in.cbz"),
+      "--config",
+      join(dir, "missing.json"),
+      "-e",
+      "foo",
+    ]);
+    assert.equal(result.status, 1);
+    assert.equal(result.stderr.trim(), 'sora: Unknown engine "foo". Available: waifu2x');
+  } finally {
+    await rm(dir, { recursive: true });
+  }
+});

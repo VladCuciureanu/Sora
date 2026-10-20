@@ -76,6 +76,8 @@ for (const [flag, value, message] of [
   ["--noise", "4", /--noise must be -1, 0, 1, 2, or 3/],
   ["--concurrency", "0", /--concurrency must be a positive integer/],
   ["--concurrency", "1.5", /--concurrency must be a positive integer/],
+  ["--engine", "foo", /^Unknown engine "foo"\. Available: waifu2x$/],
+  ["-e", "realesrgan", /^Unknown engine "realesrgan"\. Available: waifu2x$/],
 ] as const) {
   test(`parseCliArgs - throws a UsageError for ${flag} ${value}`, () => {
     assert.throws(
