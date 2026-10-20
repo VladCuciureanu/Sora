@@ -46,22 +46,58 @@ export class UsageError extends Error {
   }
 }
 
+const OPTIONS = {
+  output: { type: "string", short: "o" },
+  engine: { type: "string", short: "e", default: "waifu2x" },
+  scale: { type: "string", short: "s", default: "2" },
+  noise: { type: "string", short: "n", default: "-1" },
+  concurrency: { type: "string", short: "j" },
+  config: { type: "string" },
+  help: { type: "boolean", short: "h", default: false },
+  "dry-run": { type: "boolean", default: false },
+} as const;
+
 function parseOptions(args: string[]) {
-  return parseArgs({
+  return parseArgs({ args, strict: true, allowPositionals: true, options: OPTIONS });
+}
+
+/**
+ * Describe the option whose separate value starts with a dash (which strict
+ * parseArgs rejects as ambiguous), or return `undefined` if there is none.
+ */
+function describeAmbiguousValue(args: string[]): string | undefined {
+  const { tokens } = parseArgs({
     args,
-    strict: true,
+    strict: false,
     allowPositionals: true,
-    options: {
-      output: { type: "string", short: "o" },
-      engine: { type: "string", short: "e", default: "waifu2x" },
-      scale: { type: "string", short: "s", default: "2" },
-      noise: { type: "string", short: "n", default: "-1" },
-      concurrency: { type: "string", short: "j" },
-      config: { type: "string" },
-      help: { type: "boolean", short: "h", default: false },
-      "dry-run": { type: "boolean", default: false },
-    },
+    tokens: true,
+    options: OPTIONS,
   });
+  for (const token of tokens) {
+    if (token.kind === "option" && token.inlineValue === false && token.value?.startsWith("-")) {
+      // A value like `--dry-run` is almost certainly the next option, not a value.
+      if (token.value.startsWith("--")) {
+        return `option '--${token.name}' needs a value`;
+      }
+      return (
+        `option '${token.rawName}' got '${token.value}', which looks like an option; ` +
+        `write --${token.name}=${token.value}`
+      );
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Reduce a parseArgs error message to its first sentence on one line: Node
+ * appends hints on further lines or after the first sentence.
+ */
+function firstSentence(message: string): string {
+  const line = message.split("\n")[0].trim();
+  return line
+    .split(/\.\s/)[0]
+    .replace(/\.{2,}$/, ".")
+    .trim();
 }
 
 /**
@@ -90,13 +126,20 @@ function joinNegativeNoise(args: string[]): string[] {
  * Throws `UsageError` for invalid arguments.
  */
 export function parseCliArgs(args: string[]): CliArgs | null {
+  const joined = joinNegativeNoise(args);
   let parsed: ReturnType<typeof parseOptions>;
   try {
-    parsed = parseOptions(joinNegativeNoise(args));
+    parsed = parseOptions(joined);
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code?.startsWith("ERR_PARSE_ARGS_")) {
-      // Keep only the first sentence: Node appends multi-line hints.
-      throw new UsageError((err as Error).message.split(/\.\s/)[0]);
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ERR_PARSE_ARGS_INVALID_OPTION_VALUE") {
+      const message = describeAmbiguousValue(joined);
+      if (message) {
+        throw new UsageError(message);
+      }
+    }
+    if (code?.startsWith("ERR_PARSE_ARGS_")) {
+      throw new UsageError(firstSentence((err as Error).message));
     }
     throw err;
   }

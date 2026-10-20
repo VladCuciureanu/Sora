@@ -79,6 +79,23 @@ test("cli - unknown option prints one error line, exits 1", () => {
   assert.equal(result.stdout, "");
 });
 
+test("cli - an option value that looks like an option prints one line with a fix, exits 1", () => {
+  const result = runCli(["in.cbz", "-o", "-dash.cbz"]);
+  assert.equal(result.status, 1);
+  assert.equal(
+    result.stderr,
+    "sora: option '-o' got '-dash.cbz', which looks like an option; write --output=-dash.cbz\n",
+  );
+  assert.equal(result.stdout, "");
+});
+
+test("cli - an option followed by another long option reports the missing value, exits 1", () => {
+  const result = runCli(["in.cbz", "-o", "--dry-run"]);
+  assert.equal(result.status, 1);
+  assert.equal(result.stderr, "sora: option '--output' needs a value\n");
+  assert.equal(result.stdout, "");
+});
+
 /** Write a config whose waifu2x binary is the running node executable, which exists. */
 async function writeConfig(dir: string): Promise<string> {
   const config = join(dir, "config.json");
