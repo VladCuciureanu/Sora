@@ -37,7 +37,22 @@ export interface CliArgs {
   dryRun: boolean;
 }
 
-export function parseCliArgs(args: string[]): CliArgs {
+/** Invalid command-line usage; `main` reports it without a stack trace. */
+export class UsageError extends Error {
+  readonly showHelp: boolean;
+
+  constructor(message: string, options: { showHelp?: boolean } = {}) {
+    super(message);
+    this.name = "UsageError";
+    this.showHelp = options.showHelp ?? false;
+  }
+}
+
+/**
+ * Parse command-line arguments. Returns `null` when `--help` was requested.
+ * Throws `UsageError` for invalid arguments.
+ */
+export function parseCliArgs(args: string[]): CliArgs | null {
   // strict: false: unknown flags are ignored and
   // option values may start with a dash (e.g. `-n -1`).
   const { values, positionals } = parseArgs({
@@ -70,27 +85,22 @@ export function parseCliArgs(args: string[]): CliArgs {
   };
 
   if (parsed.help) {
-    console.log(HELP);
-    process.exit(0);
+    return null;
   }
 
   const input = positionals[0];
   if (!input) {
-    console.error("Error: input CBZ file is required\n");
-    console.error(HELP);
-    process.exit(1);
+    throw new UsageError("input CBZ file is required", { showHelp: true });
   }
 
   const scale = Number(parsed.scale);
   if (![2, 4].includes(scale)) {
-    console.error("Error: --scale must be 2 or 4");
-    process.exit(1);
+    throw new UsageError("--scale must be 2 or 4");
   }
 
   const noise = Number(parsed.noise);
   if (![-1, 0, 1, 2, 3].includes(noise)) {
-    console.error("Error: --noise must be -1, 0, 1, 2, or 3");
-    process.exit(1);
+    throw new UsageError("--noise must be -1, 0, 1, 2, or 3");
   }
 
   const defaultOutput = join(
@@ -100,8 +110,7 @@ export function parseCliArgs(args: string[]): CliArgs {
 
   const concurrency = parsed.concurrency != null ? Number(parsed.concurrency) : undefined;
   if (concurrency != null && (!Number.isInteger(concurrency) || concurrency < 1)) {
-    console.error("Error: --concurrency must be a positive integer");
-    process.exit(1);
+    throw new UsageError("--concurrency must be a positive integer");
   }
 
   return {
@@ -118,6 +127,10 @@ export function parseCliArgs(args: string[]): CliArgs {
 
 async function main(): Promise<void> {
   const args = parseCliArgs(process.argv.slice(2));
+  if (args === null) {
+    console.log(HELP);
+    return;
+  }
 
   // Load config and register engines
   const config = await loadConfig(args.configPath);
@@ -211,6 +224,9 @@ function isMainModule(): boolean {
 if (isMainModule()) {
   main().catch((err: unknown) => {
     console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+    if (err instanceof UsageError && err.showHelp) {
+      console.error(`\n${HELP}`);
+    }
     process.exitCode = 1;
   });
 }
